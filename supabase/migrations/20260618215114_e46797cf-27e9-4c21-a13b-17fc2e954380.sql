@@ -1,0 +1,1 @@
+DELETE FROM public.saved_searches WHERE created_at = '2026-06-08 13:02:05.065714+00';

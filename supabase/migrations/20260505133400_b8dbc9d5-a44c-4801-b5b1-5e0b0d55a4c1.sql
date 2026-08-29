@@ -1,0 +1,1 @@
+UPDATE public.backfill_state SET completed = true, last_run_at = now() WHERE source = 'sell2wales';

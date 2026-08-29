@@ -1,0 +1,166 @@
+{
+  "version": 1,
+  "sdk_version": "0.25.0",
+  "path": "/functions/v1/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://wklmkjmdrajxvvizkxkk.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "bidintel-mcp",
+      "version": "0.1.0",
+      "title": "BidIntel"
+    },
+    "tools": [
+      {
+        "name": "search_tenders",
+        "title": "Search tenders",
+        "description": "Search UK public sector tender notices by keyword, buyer, source and publication window. Returns the most recently published matches.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "keyword": {
+              "description": "Free text matched against tender title and description.",
+              "type": "string"
+            },
+            "buyer": {
+              "description": "Buyer / contracting authority name (partial match).",
+              "type": "string"
+            },
+            "source": {
+              "description": "Source code, e.g. cf, fts, contracts_scotland, ccs_digital_outcomes.",
+              "type": "string"
+            },
+            "published_from": {
+              "description": "ISO date. Only tenders published on or after this date.",
+              "type": "string"
+            },
+            "open_only": {
+              "description": "Only tenders whose submission deadline is still in the future.",
+              "type": "boolean"
+            },
+            "limit": {
+              "description": "Maximum results to return (default 20, max 100).",
+              "type": "number"
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_tender",
+        "title": "Get tender",
+        "description": "Fetch the full detail of a single tender notice by its id or external id.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "id": {
+              "description": "Internal tender UUID.",
+              "type": "string"
+            },
+            "external_id": {
+              "description": "Source external id / OCID of the tender.",
+              "type": "string"
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "search_awards",
+        "title": "Search contract awards",
+        "description": "Search awarded contracts by supplier and/or buyer name. Names are matched against the normalised canonical name so variants resolve to one entity.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "supplier": {
+              "description": "Supplier / winning organisation name (partial match).",
+              "type": "string"
+            },
+            "buyer": {
+              "description": "Buyer / contracting authority name (partial match).",
+              "type": "string"
+            },
+            "awarded_from": {
+              "description": "ISO date. Only awards made on or after this date.",
+              "type": "string"
+            },
+            "limit": {
+              "description": "Maximum results to return (default 25, max 100).",
+              "type": "number"
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_saved_bids",
+        "title": "List saved bids",
+        "description": "List the bids in the signed-in user's organisation pipeline, optionally filtered by pipeline status.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "status": {
+              "description": "Pipeline status filter, e.g. interested, bidding, submitted, won, lost.",
+              "type": "string"
+            },
+            "limit": {
+              "description": "Maximum results to return (default 50, max 200).",
+              "type": "number"
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_saved_searches",
+        "title": "List saved searches",
+        "description": "List the saved searches (daily digest alerts) belonging to the signed-in user's organisation, including their filters and last alert time.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "active_only": {
+              "description": "Only return saved searches that are currently active.",
+              "type": "boolean"
+            }
+          }
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}

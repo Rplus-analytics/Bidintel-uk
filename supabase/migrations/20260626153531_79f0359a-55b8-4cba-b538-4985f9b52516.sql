@@ -1,0 +1,1 @@
+UPDATE public.saved_searches SET active = false WHERE id = '744106eb-af87-442b-904f-230379ff6652';

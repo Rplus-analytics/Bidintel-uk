@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_rcf_title_trgm ON public.raw_contracts_finder USING gin ((payload->'tender'->>'title') gin_trgm_ops);

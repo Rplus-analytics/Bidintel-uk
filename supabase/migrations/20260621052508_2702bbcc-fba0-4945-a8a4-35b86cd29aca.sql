@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_tenders_contract_end ON public.tenders(contract_end) WHERE contract_end IS NOT NULL;

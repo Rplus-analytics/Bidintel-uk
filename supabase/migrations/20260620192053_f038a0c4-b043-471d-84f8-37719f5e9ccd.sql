@@ -1,0 +1,1 @@
+UPDATE saved_searches SET last_alerted_at = now() - interval '25 hours' WHERE id = '744106eb-af87-442b-904f-230379ff6652';

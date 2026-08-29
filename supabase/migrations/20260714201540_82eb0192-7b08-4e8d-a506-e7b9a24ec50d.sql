@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_tenders_deadline_published ON public.tenders (deadline_at, published_at DESC NULLS LAST) WHERE deadline_at IS NOT NULL;

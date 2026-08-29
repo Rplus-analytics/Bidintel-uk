@@ -1,0 +1,1 @@
+ALTER VIEW public.tender_embedding_stats SET (security_invoker = true);

@@ -1,0 +1,1 @@
+UPDATE public.saved_searches SET last_alerted_at = now() - interval '30 days' WHERE active = true;

@@ -1,0 +1,1 @@
+UPDATE backfill_state SET year=2020, month0=0, day_offset=0, cursor_date='2020-01-01', completed=false WHERE source='cf_bulk';

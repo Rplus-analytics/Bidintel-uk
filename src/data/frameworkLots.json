@@ -1,0 +1,964 @@
+{
+  "RM6173": [
+    {
+      "title": "Lot 1: Automation Marketplace DPS",
+      "expires": "15/11/2026",
+      "description": "Understanding the opportunity, setting a strategic direction and target operating models. This filter allows buyers to build an evidence base and the sub-filters are areas to focus on."
+    }
+  ],
+  "RM6200": [
+    {
+      "title": "Lot 1: Artificial Intelligence (AI)",
+      "expires": "04/11/2026"
+    }
+  ],
+  "RM6102": [],
+  "RM6348": [],
+  "RM6292": [],
+  "RM6165": [
+    {
+      "title": "Lot 1: Built Environment",
+      "expires": "29/05/2026",
+      "description": "Construction advisory services to support a wide range of projects and programmes in the built environment 20 suppliers"
+    },
+    {
+      "title": "Lot 2: Urban Regeneration",
+      "expires": "29/05/2026",
+      "description": "Construction advisory services to support a wide range of urban regeneration and infrastructure projects and programmes 14 suppliers"
+    },
+    {
+      "title": "Lot 4: High Rise",
+      "expires": "29/05/2026",
+      "description": "Construction advisory services to support a wide range of high rise projects and programmes 11 suppliers"
+    },
+    {
+      "title": "Lot 6: Environmental",
+      "expires": "29/05/2026",
+      "description": "Environmental and Sustainability Technical advisory services in support of construction related projects and programmes. 8 suppliers"
+    }
+  ],
+  "RM6279": [],
+  "RM6267": [
+    {
+      "title": "Lot 2: Healthcare Solution Provider £20M – £70M - England",
+      "expires": "31/03/2027",
+      "description": "8 suppliers"
+    },
+    {
+      "title": "Lot 3: Healthcare Solution Provider >£70M - England",
+      "expires": "31/03/2027",
+      "description": "7 suppliers"
+    },
+    {
+      "title": "Lot 4: CWAS 2. Airfield Works – National Lot",
+      "expires": "31/03/2027",
+      "description": "6 suppliers"
+    },
+    {
+      "title": "Lot 5: CWAS 2. General Construction Works >£80m - National Lot",
+      "expires": "31/03/2027",
+      "description": "19 suppliers"
+    }
+  ],
+  "RM6124": [],
+  "RM6356": [],
+  "RM6262": [],
+  "RM6226": [
+    {
+      "title": "Lot 1: Managed Collection Services",
+      "expires": "13/12/2026",
+      "description": "Provides access to two Managed Service Providers (MSP). Each MSP will manage a panel of Debt Collection Agencies (DCAs) who are FCA authorised and regulated. The DCAs offer desk based collection services, contacting your customers directly to arrange repayment of outstanding debts The MSPs will use data to create debt recovery strategies based on customers' individual circumstances. They will then place the debt with the most appropriate DCA and will monitor their performance and adjust placements accordingly to maximise recovery rates. The DCAs will work directly with your customers and ensure debt is collected sustainably and fairly. Including identification and ethical treatment of vulnerable consumers 2 suppliers"
+    }
+  ],
+  "RM6366": [],
+  "RM6285": [],
+  "RM6242": [
+    {
+      "title": "Lot 1: Construction Professional Services DPS",
+      "expires": "23/02/2029",
+      "description": "This DPS uses a filter system. The filters available are: Filter 1: Technical &amp; Professional Services A platform for suppliers, including SMEs to provide individual or specialist services. Filter 2: Industry Sector Enables buyers to select suppliers with the relevant experience and capability in the specific industry sector needed. Filter 3: Geographical Regions The areas that suppliers can provide services to. This is arranged by the Nomenclature of Territorial Units for Statistics (NUTS) region codes, which is a 2 letter code referencing UK location. This is also to allow customers to 'buy local' and support their social value needs. Filter 4: Additional Capability value threshold: suppliers can list the contract values that they are able to support projects on allows buyers the opportunity to support growth targets and the SME agenda security clearances: suppliers will note the level of security clearance they hold at the time of tender you can update this in filters at any point as you update your security clearances you will be able to shortlist by security clearance where needed for a specific project data security: while the DPS requirement for entry will be cyber essentials, suppliers will need to note if they hold cyber essentials plus and ISO27001 as a shortlisting filter there are buyers whose security needs may mean that they have cyber essentials plus as a minimum requirement other buyers may need cyber essentials and ISO27001 together as a minimum requirement ISO27001 is a quality accreditation for data security. A list of appointed suppliers can be found using this link."
+    }
+  ],
+  "RM6335": [],
+  "RM6249": [],
+  "RM6088": [
+    {
+      "title": "Lot 1.1.1: Building Works & Minor Associated Civil Engineering Works & Servs–North England",
+      "expires": "31/03/2027",
+      "description": "Value band £0 to £3 million 16 suppliers"
+    },
+    {
+      "title": "Lot 1.1.2: Building Works & Minor Associated Civil Engineering Works & Servs–South England",
+      "expires": "31/03/2027",
+      "description": "Value band £0 to £3 million 17 suppliers"
+    },
+    {
+      "title": "Lot 1.1.3: Building Works & Minor Associated Civil Engineering Works & Servs–Wales",
+      "expires": "31/03/2027",
+      "description": "Value band £0 to £3 million 4 suppliers"
+    },
+    {
+      "title": "Lot 1.1.4: Building Works & Minor Associated Civil Engineering Works & Servs–Scotland",
+      "expires": "31/03/2027",
+      "description": "Value band £0 to £3 million 7 suppliers"
+    },
+    {
+      "title": "Lot 1.1.5: Building Works & Minor Associated Civil Engineering Works & Servs–N. Ireland",
+      "expires": "31/03/2027",
+      "description": "Value band £0 to £3 million 2 suppliers"
+    },
+    {
+      "title": "Lot 1.2.1: Civil Engineering Works & Minor Associated Building Works & Servs–North England",
+      "expires": "31/03/2027",
+      "description": "Value band £0 to £3 million 9 suppliers"
+    },
+    {
+      "title": "Lot 1.2.2: Civil Engineering Works & Minor Associated Building Works & Servs–South England",
+      "expires": "31/03/2027",
+      "description": "Value band £0 to £3 million 10 suppliers"
+    },
+    {
+      "title": "Lot 1.2.3: Civil Engineering Works & Minor Associated Building Works & Servs–Wales",
+      "expires": "31/03/2027",
+      "description": "Value band £0 to £3 million 2 suppliers"
+    },
+    {
+      "title": "Lot 1.2.4: Civil Engineering Works & Minor Associated Building Works & Servs–Scotland",
+      "expires": "31/03/2027",
+      "description": "Value band £0 to £3 million 3 suppliers"
+    },
+    {
+      "title": "Lot 1.2.5: Civil Engineering Works & Minor Associated Building Works & Servs–N. Ireland",
+      "expires": "31/03/2027",
+      "description": "Value band £0 to £3 million No suppliers"
+    },
+    {
+      "title": "Lot 2.1: Construction Works and Associated Services – North England",
+      "expires": "31/03/2027",
+      "description": "Value band £3 million to £10 million. 12 suppliers"
+    },
+    {
+      "title": "Lot 2.2: Construction Works and Associated Services – South England",
+      "expires": "31/03/2027",
+      "description": "Value band £3-10m 10 suppliers"
+    },
+    {
+      "title": "Lot 2.3: Construction Works and Associated Services – Wales",
+      "expires": "31/03/2027",
+      "description": "Value band £3-10m 10 suppliers"
+    },
+    {
+      "title": "Lot 2.4: Construction Works and Associated Services – Scotland",
+      "expires": "31/03/2027",
+      "description": "Value band £3-10m 12 suppliers"
+    },
+    {
+      "title": "Lot 2.5: Construction Works and Associated Services – N. Ireland",
+      "expires": "31/03/2027",
+      "description": "Value band £3-10m 9 suppliers"
+    },
+    {
+      "title": "Lot 3.1: Construction Works and Associated Services – North England",
+      "expires": "31/03/2027",
+      "description": "Value band £10-30m 13 suppliers"
+    },
+    {
+      "title": "Lot 3.2: Construction Works and Associated Services – South England",
+      "expires": "31/03/2027",
+      "description": "Value band £10-30m 17 suppliers"
+    },
+    {
+      "title": "Lot 3.3: Construction Works and Associated Services – Wales",
+      "expires": "31/03/2027",
+      "description": "Value band £10-30m 10 suppliers"
+    },
+    {
+      "title": "Lot 3.4: Construction Works and Associated Services – Scotland",
+      "expires": "31/03/2027",
+      "description": "Value band £10-30m 12 suppliers"
+    },
+    {
+      "title": "Lot 3.5: Construction Works and Associated Services – N. Ireland",
+      "expires": "31/03/2027",
+      "description": "Value band £10-30m 6 suppliers"
+    },
+    {
+      "title": "Lot 4.1: Construction Works and Associated Services – England/ Wales",
+      "expires": "31/03/2027",
+      "description": "Value band £30-80m 13 suppliers"
+    },
+    {
+      "title": "Lot 4.2: Construction Works and Associated Services – Scotland",
+      "expires": "31/03/2027",
+      "description": "Value band £30-80m 12 suppliers"
+    },
+    {
+      "title": "Lot 4.3: Construction Works and Associated Services – N. Ireland",
+      "expires": "31/03/2027",
+      "description": "Value band £30-80m 4 suppliers"
+    },
+    {
+      "title": "Lot 5: Construction Works & Assoc Servs (£80m +) - National Lot across all UK regions",
+      "expires": "31/03/2027",
+      "description": "National Lot across all UK regions £80m plus 13 suppliers"
+    },
+    {
+      "title": "Lot 6.1: Residential – North England",
+      "expires": "31/03/2027",
+      "description": "10 suppliers"
+    },
+    {
+      "title": "Lot 6.2: Residential – South England",
+      "expires": "31/03/2027",
+      "description": "10 suppliers"
+    },
+    {
+      "title": "Lot 6.3: Residential – Wales",
+      "expires": "31/03/2027",
+      "description": "3 suppliers"
+    },
+    {
+      "title": "Lot 6.4: Residential – Scotland",
+      "expires": "31/03/2027",
+      "description": "5 suppliers"
+    },
+    {
+      "title": "Lot 6.5: Residential – N. Ireland",
+      "expires": "31/03/2027",
+      "description": "2 suppliers"
+    },
+    {
+      "title": "Lot 7.1: High Rise Accommodation – North England",
+      "expires": "31/03/2027",
+      "description": "11 suppliers"
+    },
+    {
+      "title": "Lot 7.2: High Rise Accommodation – South England",
+      "expires": "31/03/2027",
+      "description": "12 suppliers"
+    },
+    {
+      "title": "Lot 7.3: High Rise Accommodation – Wales",
+      "expires": "31/03/2027",
+      "description": "1 suppliers"
+    },
+    {
+      "title": "Lot 7.4: High Rise Accommodation – Scotland",
+      "expires": "31/03/2027",
+      "description": "4 suppliers"
+    },
+    {
+      "title": "Lot 7.5: High Rise Accommodation – N. Ireland",
+      "expires": "31/03/2027",
+      "description": "No suppliers"
+    },
+    {
+      "title": "Lot 8: Maritime - National Lot across all UK regions",
+      "expires": "31/03/2027",
+      "description": "6 suppliers"
+    },
+    {
+      "title": "Lot 9: Airfields - National Lot across all UK regions",
+      "expires": "31/03/2027",
+      "description": "6 suppliers"
+    },
+    {
+      "title": "Lot 10: Demolition - National Lot across all UK regions",
+      "expires": "31/03/2027",
+      "description": "13 suppliers"
+    },
+    {
+      "title": "Lot 11: Construction Management - National Lot across all UK regions",
+      "expires": "31/03/2027",
+      "description": "11 suppliers"
+    }
+  ],
+  "RM6263": [
+    {
+      "title": "Lot 1: Digital Programmes",
+      "expires": "30/05/2026",
+      "description": "51 suppliers"
+    },
+    {
+      "title": "Lot 2: Digital Specialists",
+      "expires": "30/05/2026",
+      "description": "51 suppliers"
+    }
+  ],
+  "RM6336": [],
+  "RM6195": [
+    {
+      "title": "Lot 1: Design, Build and Run Professional Services",
+      "expires": "08/08/2026",
+      "description": "29 suppliers"
+    },
+    {
+      "title": "Lot 2: Commercial off-the-shelf (COTS) Software",
+      "expires": "08/08/2026",
+      "description": "25 suppliers"
+    }
+  ],
+  "RM6310": [],
+  "RM6313": [],
+  "RM6232": [],
+  "RM6284": [
+    {
+      "title": "Lot 1: General Costs Law Services",
+      "expires": "24/07/2027",
+      "description": "Access legal advice for all aspects of costs law. Services can include: work relating to budgets costs statements costs managements costs validation assessment dispute resolution hearings. 8 suppliers"
+    },
+    {
+      "title": "Lot 2: Clinical Negligence Specialist Services",
+      "expires": "24/07/2027",
+      "description": "Access all services provided in lot 1 but only in relation to clinical negligence. 7 suppliers"
+    },
+    {
+      "title": "Lot 3: Security Clearance Specialist Services",
+      "expires": "24/07/2027",
+      "description": "Access all services provided in lot 1 but also includes extra obligations for security and data such as all personnel having security clearance at SC level. 4 suppliers"
+    }
+  ],
+  "RM6314": [],
+  "RM6354": [],
+  "RM6322": [],
+  "RM6290": [],
+  "RM6345": [
+    {
+      "title": "Lot 1: Digital Capability for Health 2",
+      "expires": "09/12/2027",
+      "description": "22 suppliers"
+    }
+  ],
+  "RM6343": [],
+  "RM6349": [],
+  "RM6273": [],
+  "RM6276": [],
+  "RM6264": [],
+  "RM6138": [
+    {
+      "title": "Lot 1: Insurance Services 3 DPS",
+      "expires": "07/01/2028"
+    }
+  ],
+  "RM6333": [
+    {
+      "title": "Lot 1: Recruitment Services of Permanent International Nursing and Midwifery Staff",
+      "expires": "01/05/2027",
+      "description": "Recruitment services of permanent International Nursing and Midwifery staff 45 suppliers"
+    },
+    {
+      "title": "Lot 2: International Doctors and Dentists",
+      "expires": "01/05/2027",
+      "description": "Recruitment services of permanent International Doctors and Dentists staff 37 suppliers"
+    },
+    {
+      "title": "Lot 3: International AHPs Including Social Workers",
+      "expires": "01/05/2027",
+      "description": "Recruitment services of permanent Allied Health Professions (AHPs) including Social Workers staff 37 suppliers"
+    },
+    {
+      "title": "Lot 4: International OSCE Training Support Services",
+      "expires": "01/05/2027",
+      "description": "Training support services as part of onboarding international candidates. This is part of a complete approach that can be taken to attract and retain suitable candidates. 21 suppliers"
+    },
+    {
+      "title": "Lot 5: International Candidate Pastoral Support",
+      "expires": "01/05/2027",
+      "description": "Access pastoral support services to help candidate's who have been deployed to the UK adjust to living in the UK. 38 suppliers"
+    }
+  ],
+  "RM6302": [
+    {
+      "title": "Lot 1: National Managed Service",
+      "expires": "06/05/2028",
+      "description": "20 suppliers"
+    },
+    {
+      "title": "Lot 2: Translation and Support Services",
+      "expires": "06/05/2028",
+      "description": "22 suppliers"
+    },
+    {
+      "title": "Lot 3: Transcription, Stenography and Recording Services",
+      "expires": "06/05/2028",
+      "description": "14 suppliers"
+    },
+    {
+      "title": "Lot 4: Visual Interpreting Services",
+      "expires": "06/05/2028",
+      "description": "11 suppliers"
+    },
+    {
+      "title": "Lot 5: Overseas and UK Interpreting",
+      "expires": "06/05/2028",
+      "description": "11 suppliers"
+    }
+  ],
+  "RM6367": [],
+  "RM3825": [],
+  "RM6350": [],
+  "RM6237": [],
+  "RM6241": [],
+  "RM6219": [],
+  "RM6123": [],
+  "RM6323": [],
+  "RM6308": [
+    {
+      "title": "Lot 1: Office Furniture (Standard & Government Corporate)",
+      "expires": "22/01/2028",
+      "description": "Office furniture that meets the Government hub standards including: desks, workstations, seating, storage, general sundry items, conference room furniture, break out furniture and home working furniture. Includes supply and delivery, or supply, delivery and installation if required. 8 suppliers"
+    },
+    {
+      "title": "Lot 2: MOD Office",
+      "expires": "22/01/2028",
+      "description": "Designed for MOD however is open to all public sector buyers. Includes desks, workstations, seating, storage, general sundry items, conference room furniture and break out furniture. Includes supply and delivery, or supply, delivery and installation if required. 5 suppliers"
+    },
+    {
+      "title": "Lot 3: Residential Furniture",
+      "expires": "22/01/2028",
+      "description": "Includes beds, bedroom furniture, living room furniture, dining room furniture, residential seating and additional sundry items. Includes supply and delivery, or supply, delivery and installation if required. 4 suppliers"
+    },
+    {
+      "title": "Lot 4: High Density Steel Storage",
+      "expires": "22/01/2028",
+      "description": "Includes steel storage solutions such as static and mobile storage and gondola library shelving. 3 suppliers"
+    },
+    {
+      "title": "Lot 5: Sustainability",
+      "expires": "22/01/2028",
+      "description": "Includes repairing and re-manufacturing of buyers existing furniture and buying second life furniture. This lot also includes MOD repair and renovation services. 5 suppliers"
+    }
+  ],
+  "RM6281": [],
+  "RM6364": [],
+  "RM6331": [],
+  "RM6389": [],
+  "RM6380": [],
+  "RM6277": [],
+  "RM6296": [],
+  "RM6360": [],
+  "RM6116": [
+    {
+      "title": "Lot 1a: Inter Site Connectivity (Wider Area Network) / Data Access Services",
+      "expires": "17/07/2027",
+      "description": "Connectivity services that link your sites together or connect your sites to the cloud. This includes: terrestrial, fibre, wireless and satellite solutions 5G and 6G networks data networking equipment software defined WAN, Secure Access Service Edge (SASE) internet service provider,services and gateways broadband routing and performance monitoring email and website services from internet providers professional services to design, build and manage network connections 44 suppliers"
+    },
+    {
+      "title": "Lot 1b: Commercial Radio Capabilities",
+      "expires": "17/07/2027",
+      "description": "Voice communication systems using ultra/very high frequency radio technology. This includes but is not limited to: design, survey, build and installation services secure radio and support equipment mobile radio and two-way transceivers point-to-point and point-to-multipoint connections management, support and maintenance services 14 suppliers"
+    },
+    {
+      "title": "Lot 1c: Tactical Radio Systems",
+      "expires": "22/05/2027",
+      "description": "Tactical radio communication systems for use in demanding environments. This includes: personal, manpack and platform radio systems tactical radio communications systems using line of sight, C, S and L band, ultra-high frequency and very high frequency options design, survey, build and installation services management, support and maintenance services supply of radio system assembly supply of supporting (ancillary) equipment such as cables for power, data and audio connections cable assembly for interfacing to any proprietary systems system verification, acceptance, test and evaluation 11 suppliers"
+    },
+    {
+      "title": "Lot 1d: Critical Domain Services",
+      "expires": "22/05/2027",
+      "description": "Services to operate and manage nationally critical public sector domain names. This includes: critical domain registry functions, that meet ICANN (Internet Corporation for Assigned Names and Numbers) standards enhanced resilience and availability for critical domains functions to support the full management and governance of a nationally critical public sector domain 2 suppliers"
+    },
+    {
+      "title": "Lot 2a: Intra Site Connectivity (Local Area Network) / Local Connectivity Services",
+      "expires": "17/07/2027",
+      "description": "Access to single site connectivity services, including but not limited to; local area networks (LAN) enabling interconnectivity. design, survey, build, management, support and maintenance services wired and/or wireless solutions local area network (LAN) equipment and/or cabling and/or storage area network (SAN) equipment LAN power solution and managed equipment room local infrastructure audit and/or testing services (such as asset management tools) 60 suppliers"
+    },
+    {
+      "title": "Lot 3a: IoT and Smart Cities (Smart shared and connected spaces)",
+      "expires": "17/07/2027",
+      "description": "Lot 3a: IoT and Smart Cities (Smart shared and connected spaces) Smart technology and Internet of Things (IoT) solutions for connected spaces. This includes (but is not limited to):: smart buildings, street lighting and water and waste management air and noise pollution monitoring crime prevention and education technology design, survey, build and installation services management, support and maintenance services vendor agnostic solution design ‘edge’ sensor technologies, connectivity and data analytics platforms all forms of WAN connectivity between sensors in the field and cloud-based or “on-premise” data management platforms infrastructure monitoring and maintenance and break/fix activities data security and integration with other systems (including 3rd party integration) that form part of overall solution designs image recognition, alarms, security monitoring and CCTV (Closed Circuit Television) as a service 25 suppliers"
+    },
+    {
+      "title": "Lot 3b: Communication Platform as a Service",
+      "expires": "17/07/2027",
+      "description": "Software and hardware integration services to connect applications to your communications systems using Application Programming Interfaces (APIs). This includes: design, build, testing and deployment services management, support and maintenance services API development to link your communications systems with external omni-channel applications 15 suppliers"
+    },
+    {
+      "title": "Lot 4a: Analogue Telephony",
+      "expires": "17/07/2027",
+      "description": "Analogue voice services, also known as traditional telephony, This connects your phone equipment to the public switched telephone network. Services include: voice connectivity and voice call packages, including minutes and volume bundles Sessions Initiation Protocol (SIP) trunks design, survey, build and installation services support to move from analogue to IP telephony management, support and maintenance services adaptors and convertors for internet protocol connections direct dial in (DDI) number ranges end user devices 23 suppliers"
+    },
+    {
+      "title": "Lot 4b: Digital Communication Services (Unified Communications)",
+      "expires": "17/07/2027",
+      "description": "Digital communications services, which includes (but is not limited to): Internet Protocol (IP) telephony and unified communications collaborative software application and business applications (including audio and video conferencing) design, build, management, and maintenance services transformation support for the replacement and upgrade from analogue to digital estates multimedia messaging (make and receive calls) over IP networks consistent single user interface for voice, video, and data audio and video conferencing (standalone or integrated) 64 suppliers"
+    },
+    {
+      "title": "Lot 4c: Contact Centre Solutions",
+      "expires": "17/07/2027",
+      "description": "Inbound and outbound contact centre management including: automation and queuing to multiple answering points. automated call handling and queue management (to multiple answering points) design, build, test, and deployment equipment supply and managed support services delivery and management omnichannel customer experience platforms ongoing support and maintenance 51 suppliers"
+    },
+    {
+      "title": "Lot 4d: Inbound Telephony Services",
+      "expires": "17/07/2027",
+      "description": "Access to telephone numbers for inbound call delivery. Including but not limited to; inbound call management services, non-geographic numbers. inbound call management services for contact centre functionality, the ability to provide you with a non-geographic number; and deliver all calls to that number to your nominated location 23 suppliers"
+    },
+    {
+      "title": "Lot 4e: Paging & Alerting",
+      "expires": "17/07/2027",
+      "description": "Alert and paging services for end users including: tone, numeric, or text-based alerts design, survey, build, management, support and maintenance services bureau services local, national, and international coverage options 12 suppliers"
+    }
+  ],
+  "RM6329": [],
+  "RM6295": [],
+  "RM6309": [
+    {
+      "title": "Lot 1: Business",
+      "expires": "28/07/2027",
+      "description": "71 suppliers"
+    },
+    {
+      "title": "Lot 2: Strategy and policy",
+      "expires": "28/07/2027",
+      "description": "56 suppliers"
+    },
+    {
+      "title": "Lot 3: Complex and transformation",
+      "expires": "28/07/2027",
+      "description": "36 suppliers"
+    },
+    {
+      "title": "Lot 4: Finance",
+      "expires": "28/07/2027",
+      "description": "36 suppliers"
+    },
+    {
+      "title": "Lot 5: HR",
+      "expires": "28/07/2027",
+      "description": "32 suppliers"
+    },
+    {
+      "title": "Lot 6: Procurement and supply chain",
+      "expires": "28/07/2027",
+      "description": "37 suppliers"
+    },
+    {
+      "title": "Lot 7: Health, social care and community",
+      "expires": "28/07/2027",
+      "description": "46 suppliers"
+    },
+    {
+      "title": "Lot 8: Infrastructure",
+      "expires": "28/07/2027",
+      "description": "45 suppliers"
+    },
+    {
+      "title": "Lot 9: Environment and sustainability",
+      "expires": "28/07/2027",
+      "description": "43 suppliers"
+    },
+    {
+      "title": "Lot 10: Restructuring and insolvency",
+      "expires": "28/07/2027",
+      "description": "15 suppliers"
+    }
+  ],
+  "RM6248": [],
+  "RM6280": [
+    {
+      "title": "Lot 1: Franking Machines, Mailroom Equipment and Associated Consumables",
+      "expires": "02/10/2027",
+      "description": "5 suppliers"
+    },
+    {
+      "title": "Lot 2: Collection and Delivery of Letters, Large Letters and Parcels within UK",
+      "expires": "02/10/2027",
+      "description": "7 suppliers"
+    },
+    {
+      "title": "Lot 3: Collection and Delivery of Letters, Large Letters and Parcels : International",
+      "expires": "02/10/2027",
+      "description": "6 suppliers"
+    },
+    {
+      "title": "Lot 4: Audits, Efficiency Reviews and Niche Consultancy",
+      "expires": "02/10/2027",
+      "description": "1 suppliers"
+    },
+    {
+      "title": "Lot 5: Business Process Outsourcing, Mailroom, Document and Data Managed Services",
+      "expires": "02/10/2027",
+      "description": "6 suppliers"
+    },
+    {
+      "title": "Lot 6: Hybrid Mail, Digital and Transformational",
+      "expires": "02/10/2027",
+      "description": "20 suppliers"
+    },
+    {
+      "title": "Lot 7: Inbound Delivery, Mail Opening and Digital Scanning Services",
+      "expires": "02/10/2027",
+      "description": "10 suppliers"
+    },
+    {
+      "title": "Lot 8: Security Scanning Services",
+      "expires": "02/10/2027",
+      "description": "2 suppliers"
+    }
+  ],
+  "RM6297": [],
+  "RM6371": [],
+  "RM6261": [
+    {
+      "title": "Lot 1: Mobile Voice and Data Services Catalogue",
+      "expires": "12/12/2026",
+      "description": "Access mobile and data services including: UK airtime and calls, SMS and data international airtime, calls, SMS and data roaming airtime, calls, SMS and data device hardware, accessories and supporting services mobile device management and associated supplementary services such as security 4 suppliers"
+    },
+    {
+      "title": "Lot 2: Mobile Voice and Data Solutions",
+      "expires": "12/12/2026",
+      "description": "Access all the services from lot 1 as well as: individually tailor services to fit your business needs such as flexible pricing for data usage solutions for complex requirements such as security 8 suppliers"
+    },
+    {
+      "title": "Lot 3: Telecommunications Audit and Health Check",
+      "expires": "12/12/2026",
+      "description": "Access audit and health check services for telecommunications including: a service that audits current spend and usage levels the analysis of existing customer requirements against service availability with the recommendation of possible tariff/solution prioritisation and a preferred agreement supplier support services including auditing support and mobile hardware inventory contact services to provide communications with individual end users and verify record accuracy 1 suppliers"
+    },
+    {
+      "title": "Lot 4: Professional Services",
+      "expires": "12/12/2026",
+      "description": "Provides professional services and business and technical expertise to create, manage and optimise mobile services. This may include but is not limited to: system and service integration business case, specification development and proof of concept security solutions for mobile transition support services business policy and or strategy development customer mobile application development technical assurance 6 suppliers"
+    }
+  ],
+  "RM6184": [],
+  "RM6305": [],
+  "RM6361": [],
+  "RM6346": [],
+  "RM6299": [
+    {
+      "title": "Lot 1: Office Stationery and Electronic Office Supplies (EOS) (Multi Supplier)",
+      "expires": "22/04/2028",
+      "description": "This lot is for all office products including stationery, paper products, janitorial products and EOS such as fax, ink and printer cartridges. 7 suppliers"
+    },
+    {
+      "title": "Lot 2: Electronic Office Supplies (EOS) (Multi Supplier)",
+      "expires": "22/04/2028",
+      "description": "This lot is for electronic office supplies (EOS) products only. This includes printer consumables such a s ink, toner cartridges, and accessories. 7 suppliers"
+    }
+  ],
+  "RM6301": [],
+  "RM6325": [],
+  "RM6148": [
+    {
+      "title": "Lot 1: Quality Assurance and Testing for IT Systems 2",
+      "expires": "23/02/2029"
+    }
+  ],
+  "RM6235": [
+    {
+      "title": "Lot 1: Space-Enabled and Geospatial Services",
+      "expires": "10/02/2029",
+      "description": "We have organised services using filters to help you select capable suppliers who can meet your needs, these filters are: Category of requirement: allows you to specify whether your need is relevant to: satellite communications geospatial data and services UAV solutions upstream professional services Service or product to be provided allows you to define the broad type of product or service(s) that you will need from the supplier to fulfil your needs Specialist capabilities provides an opportunity to reduce your supplier shortlist further based on particular sets of capabilities that the supplier should have Commercial model capability allows you to identify whether you would prefer a traditional ‘project or milestone based’ approach or an ‘X or (‘anything’) as a service’ approach."
+    }
+  ],
+  "RM6289": [],
+  "RM6370": [
+    {
+      "title": "Lot 1: Space Technology Solutions",
+      "expires": "30/07/2031",
+      "description": "No suppliers"
+    }
+  ],
+  "RM6240": [
+    {
+      "title": "Lot 1a: Full Service Provision - England and Wales",
+      "expires": "05/09/2026",
+      "description": "23 suppliers"
+    },
+    {
+      "title": "Lot 1b: Full Service Provision - Scotland",
+      "expires": "05/09/2026",
+      "description": "11 suppliers"
+    },
+    {
+      "title": "Lot 1c: Full Service Provision - Northern Ireland",
+      "expires": "05/09/2026",
+      "description": "9 suppliers"
+    },
+    {
+      "title": "Lot 2a: General Service Provision - England and Wales",
+      "expires": "05/09/2026",
+      "description": "44 suppliers"
+    },
+    {
+      "title": "Lot 2b: General Service Provision - Scotland",
+      "expires": "05/09/2026",
+      "description": "14 suppliers"
+    },
+    {
+      "title": "Lot 2c: General Service Provision - Northern Ireland",
+      "expires": "05/09/2026",
+      "description": "13 suppliers"
+    },
+    {
+      "title": "Lot 3: Full Service: Transport Rail - Full UK",
+      "expires": "05/09/2026",
+      "description": "10 suppliers"
+    }
+  ],
+  "RM6251": [],
+  "RM6098": [
+    {
+      "title": "Lot 1: Hardware and Software and Associated Services",
+      "expires": "09/10/2027",
+      "description": "Combines both hardware, software and services through a single lot. You can buy all the hardware, software and services listed in lots 2 and 3 including (but not limited to): end user devices such as laptops, desktops, mobiles, and tablets device as a service (for example, outsourcing hardware and device management) consumables such as cabling, connectors, data storage and memory sticks commercial off the shelf (COTS) software which is commercially ready-made and available for sale, ‘as a service’, lease, or licence and is generally sourced from resellers (for example, Microsoft, VMware, Google, Oracle, ServiceNow, antivirus software and adobe) IT management software data and analytics software 16 suppliers"
+    },
+    {
+      "title": "Lot 2: Hardware",
+      "expires": "09/10/2027",
+      "description": "Buy hardware products and services only. Includes: end user devices such as laptops, desktops, mobiles, and tablets device as a service (for example, outsourcing hardware and device management) infrastructure as a service (for example, storage and networking resource on a pay as you use type basis) infrastructure hardware such as servers, data centres, hubs, routers, and switches consumables such as cabling, connectors, data storage and memory sticks peripheral equipment such as keyboards, mouse, screens and monitors other technology hardware relating to audio visual, radio, sensors, networking and security 33 suppliers"
+    },
+    {
+      "title": "Lot 3: Software",
+      "expires": "09/10/2027",
+      "description": "Buy software products and services only. Includes: commercial off the shelf (COTS) software which is commercially ready-made and available for sale, ‘as a service’, lease, or licence and is generally sourced from resellers (for example, Microsoft, VMware, Google, Oracle, ServiceNow, antivirus software and adobe) business software and productivity (such as MS Office, Teams, Google Docs) or resource management software (such as Smartsheet project) data and analytics, audio visual security such as antivirus software and firewalls cloud products including software as a service (SaaS) or cloud provider hosted applications, platform as a service (PaaS) and cloud service models 41 suppliers"
+    },
+    {
+      "title": "Lot 4: Information Assured Technology",
+      "expires": "09/10/2027",
+      "description": "Combines both hardware, software and services from lots 2 and 3 through a single lot but only from suppliers that have Facility Security Clearance (FSC). These suppliers have Developed Vetting (DV) cleared resources. 11 suppliers"
+    },
+    {
+      "title": "Lot 5: Health and Social Care Technology",
+      "expires": "09/10/2027",
+      "description": "Provides hardware, software and services designed for the health and social care sector. Includes: assistive technologies and products for example, screen readers, screen magnifiers, voice recognition and more remote monitoring products and systems, which allow health and/or social care workers to monitor individuals outside the traditional care setting using digital medical devices laptop trolleys screen mounts virtual reality products and services such as, sensory accessories, headsets, movement trackers and systems 34 suppliers"
+    },
+    {
+      "title": "Lot 6: Education Technology",
+      "expires": "09/10/2027",
+      "description": "Combines both hardware, software and services through a single lot for the education sector. You can buy all the hardware and software services listed in lots 2 and 3. Services are provided by suppliers who are education specialists. 49 suppliers"
+    },
+    {
+      "title": "Lot 7: Sustainability and Circular IT",
+      "expires": "09/10/2027",
+      "description": "Provides recycling and secure disposal services for software and hardware products. You can buy refurbished or repurposed technology for example, refurbished/ second-hand laptops, desktops, mobiles and more. 36 suppliers"
+    },
+    {
+      "title": "Lot 8: Technology Catalogue",
+      "expires": "09/10/2027",
+      "description": "Buy hardware and software through an online catalogue. Ideal for low value and low complexity requirements. 135 suppliers"
+    }
+  ],
+  "RM6190": [],
+  "RM6347": [
+    {
+      "title": "Lot 1: Professional Services",
+      "expires": "22/10/2027",
+      "description": "Services to support planning, design and more. This includes technical authority, engineering design. Engineering capabilities for technical, design and structural. 83 suppliers"
+    },
+    {
+      "title": "Lot 2: Data Services",
+      "expires": "22/10/2027",
+      "description": "Use of data such as network occupancy and scheduling, passenger and freight train movement, public transit schedules, passenger counting, infrastructure utilisation and rail simulation. 101 suppliers"
+    },
+    {
+      "title": "Lot 3: Parking Management",
+      "expires": "22/10/2027",
+      "description": "Capabilities from service providers for outsourcing both on-street or off-street parking requirements. This includes products, software and services. 36 suppliers"
+    },
+    {
+      "title": "Lot 4: Environmental Monitoring and Climate Resilience",
+      "expires": "22/10/2027",
+      "description": "Outdoor systems that collect environmental and climate data. Including related products, software and services. 46 suppliers"
+    },
+    {
+      "title": "Lot 5: Enforcement, Compliance and Security",
+      "expires": "22/10/2027",
+      "description": "Technology systems and services to prevent trespassing, property damage, theft, anti-social behaviour and to enhance security. Technologies for incident safety and emergency response. 40 suppliers"
+    },
+    {
+      "title": "Lot 6: Electric Vehicle Infrastructure",
+      "expires": "22/10/2027",
+      "description": "Electric vehicle charging infrastructure including professional services, vehicle charging points, energy generation and storage. 47 suppliers"
+    },
+    {
+      "title": "Lot 7a: Systems and Platforms - Systems Integration",
+      "expires": "22/10/2027",
+      "description": "Combining client hardware, software, and other components to create a unified transport system. Services include system integration, project management, configuration, maintenance and support, and security and compliance. 49 suppliers"
+    },
+    {
+      "title": "Lot 7b: Systems and Platforms - Smart Ticketing",
+      "expires": "22/10/2027",
+      "description": "System integration specifically for smart ticketing and integrated travel. Including goods and services for ticketing, payment systems, customer services, back office tools and ticketing solutions. 29 suppliers"
+    },
+    {
+      "title": "Lot 7c: Systems and Platforms - Transport Network Management",
+      "expires": "22/10/2027",
+      "description": "Services for the licensing, deployment and configuration of platforms that support management of the transport network. 54 suppliers"
+    },
+    {
+      "title": "Lot 8a: Active and Passive Infrastructure - Network Devices",
+      "expires": "22/10/2027",
+      "description": "Transport lighting technologies and services for lighting infrastructure. 26 suppliers"
+    },
+    {
+      "title": "Lot 8b: Active and Passive Infrastructure - Cabinets, Furniture, Storage and Ancillaries",
+      "expires": "22/10/2027",
+      "description": "Infrastructure and services used to connect and support the transport network. 27 suppliers"
+    },
+    {
+      "title": "Lot 8c: Active and Passive Infrastructure - Lighting and Electrical",
+      "expires": "22/10/2027",
+      "description": "Transport lighting technologies and services for lighting infrastructure. 23 suppliers"
+    },
+    {
+      "title": "Lot 8d: Active and Passive Infrastructure - Traffic Management Technologies",
+      "expires": "22/10/2027",
+      "description": "Permanent and temporary transport management infrastructure and services for management of the network. 24 suppliers"
+    },
+    {
+      "title": "Lot 8e: Active and Passive Infrastructure - Detectors, Informing and Communication Techn",
+      "expires": "22/10/2027",
+      "description": "Operational transport technologies and services. 44 suppliers"
+    }
+  ],
+  "RM6342": [
+    {
+      "title": "Lot 1: UK and Overseas Booked Business Travel, Civilian Programmes & Emergency Response",
+      "expires": "30/09/2027",
+      "description": "Use this lot if you need a single supplier to manage both standard travel and emergency responses. Lot 1 includes all services provided in the other 3 lots. It is the most flexible choice for departments with complex or changing needs. Services provided include: core business travel: Book flights, rail, ferries, and hotels in the UK or overseas civilian support: provide housing, security, and welfare for vulnerable groups (such as asylum seekers or refugees) crisis response: emergency evacuations for staff or civilians during unplanned events or medical emergencies (MEDEVAC), chartered planes or ships, and quick security support translation and welfare: providing language support and welfare services for people in government-approved housing expert staff: suppliers can provide \"implants\" (staff who work within your office) to manage your travel 1 suppliers"
+    },
+    {
+      "title": "Lot 2: UK Booked National and International Business Travel",
+      "expires": "30/09/2027",
+      "description": "Use this lot for standard staff travel. It provides a UK-based booking system for national and international trips. transport: Air (including helicopters), rail (UK and Eurostar), ferries, and car hire ground travel: Taxis, minibuses, and Non-Emergency Patient Transport Services (NEPTS) accommodation: Hotels, B&amp;Bs, and serviced apartments group bookings: dedicated support for booking travel and accommodation for groups ancillary services: support for getting visas, passports, and foreign currency travel tools: Access to 24/7 support, risk alerts, traveller tracking, and CO2 reporting to help you meet sustainability goals This lot does not include venue hire for events or civilian crisis support. 3 suppliers"
+    },
+    {
+      "title": "Lot 3: Venue Find and Supporting Services For Meetings, Conferences and Events",
+      "expires": "30/09/2027",
+      "description": "Use this lot to find and book spaces for meetings, conferences and events. You can also buy associated services such as travel, accommodation and catering. venues: find locations for face-to-face, virtual, or hybrid meetings globally on a residential or non-residential basis accommodation : access hotels, B&amp;Bs, serviced apartments, vessels, sites, parks and resorts for groups or solo travel when attending an associated event event services: catering, audio-visual (AV) tech, delegate management and registration services other venue-provided services: room set-up, break out rooms, timings, liaison with venue staff, copying, printing and staging associated travel: Group and solo transport specifically for event attendees including taxis, coaches and minibuses 1 suppliers"
+    },
+    {
+      "title": "Lot 4: Accommodation and Venues For Approved Civilian Programmes",
+      "expires": "30/09/2027",
+      "description": "Use this lot for long-term housing for vulnerable groups. This lot does not include business travel for staff. accommodation: source any venue type including hotels, holiday parks, student housing, or vessels for extended periods (days, months or years) Accommodation services: includes food, beverages, and laundry services as standard services should you need them as well as the venue ancillary support: request ground transportation, security services, welfare services, case management, and essential event equipment (like PPE or test kits) service management: providing venue management and ancillary service management Note: there are options for the supplier to manage just the venue or the entire support operation including ancillary services. 3 suppliers"
+    }
+  ],
+  "RM6244": [
+    {
+      "title": "Lot 1: Purchase of Passenger Cars (including 4x4 variants)",
+      "expires": "28/11/2026",
+      "description": "Buy passenger cars including saloon, hatchback, estate, coupe, convertible, sports utility vehicles, 4x4s and multi purpose vehicles. 24 suppliers"
+    },
+    {
+      "title": "Lot 2: Purchase of Light and Medium Commercial Vehicles up to 7.5T",
+      "expires": "28/11/2026",
+      "description": "Buy light and medium commercial vehicles up to 7.5 tonnes. Provides a range of commercial vehicle types including: vans chassis cab combi crew panel tippers dropside fridge vans fridge box platform cab luton car derived vans and pickups 17 suppliers"
+    },
+    {
+      "title": "Lot 3: Purchase of Medium to Heavy Commercial Vehicles including Chassis and Cabs",
+      "expires": "28/11/2026",
+      "description": "Buy medium and heavy commercial vehicles. Includes chassis and cabs, heavy goods vehicles and trucks. 9 suppliers"
+    },
+    {
+      "title": "Lot 4: Bluelight Cars and Motorcycles (Emergency Services)",
+      "expires": "28/11/2026",
+      "description": "Buy emergency vehicles for blue light services including passenger cars, all terrain vehicles, motorcycles, scooters and quad bikes. 17 suppliers"
+    },
+    {
+      "title": "Lot 5: Bluelight Light and Medium Commercial Vehicles up to 7.5T (Emergency Services)",
+      "expires": "28/11/2026",
+      "description": "Buy light and medium emergency service vehicles. Includes emergency vehicles such as vans, car derived vans and pickups. 12 suppliers"
+    },
+    {
+      "title": "Lot 6: Refuse Collection and other Waste Management Vehicles",
+      "expires": "28/11/2026",
+      "description": "Buy refuse collection and waste management vehicles including rear loaders, side loaders and front loaders. 9 suppliers"
+    },
+    {
+      "title": "Lot 7: Minibuses (9 - 17 Seats), including Accessible and Patient Transport",
+      "expires": "28/11/2026",
+      "description": "Buy minibuses with up to 17 seats. Includes accessible and patient transport vehicles. 11 suppliers"
+    },
+    {
+      "title": "Lot 8: Buses and Coaches (over 17 Seats)",
+      "expires": "28/11/2026",
+      "description": "Buy buses and coaches with more than 17 seats. 12 suppliers"
+    },
+    {
+      "title": "Lot 9: Trailers and Mobile Units, including Health Screening, Events and Mobile Office",
+      "expires": "28/11/2026",
+      "description": "Buy trailers and mobile units for health screening, events and mobile office units. 6 suppliers"
+    },
+    {
+      "title": "Lot 10: Conversion of Bespoke and Specialist Vehicles",
+      "expires": "28/11/2026",
+      "description": "Buy bespoke and specialist vehicles within the following types/categories: M1 vehicles (Passenger cars) N1 vehicles: (Light goods vehicles up to 3.5 tonnes), N2 vehicles (used for the carriage of goods, from 3.5 tonnes to 12 tonnes); N3 vehicles (used for the carriage of goods, 12 tonnes and above) ambulances, including accident and emergency double crew and other stretcher bearing vehicles b luelight conversions o ther services such as: design, consultancy, livery, electrical, communications, welfare vehicles, heating, cooling, ventilation, utilities and drainage 18 suppliers"
+    }
+  ],
+  "RM6265": [
+    {
+      "title": "Lot 1: Hire of Vehicles up to 3.5T",
+      "expires": "20/03/2027",
+      "description": "Includes passenger cars, LCVs up to 3.5 tonnes, minibuses up to 17 seats, 4x4s, car share, and international rental. 11 suppliers"
+    },
+    {
+      "title": "Lot 2: Hire of Commercial Vehicles up to 7.5T",
+      "expires": "20/03/2027",
+      "description": "Includes LCVs up to 3.5 tonnes, HGVs from 3.5 tonnes to 7.5 tonnes, 4x4s, specialist LCVs, minibuses, and passenger cars. 11 suppliers"
+    },
+    {
+      "title": "Lot 3: Hire of HGVs from 7.5T and Above",
+      "expires": "20/03/2027",
+      "description": "Includes HGVs from 7.5 tonnes and above, municipal vehicles, street scene vehicles, tractor units, trailers, refuse vehicles, hot boxes, tippers, dropsides, crane-related vehicles or other specialist HGVs. 6 suppliers"
+    },
+    {
+      "title": "Lot 4: Hire of Emergency Service and Specialist Healthcare Operational Vehicles",
+      "expires": "20/03/2027",
+      "description": "Including but not limited to trailers for healthcare usage, A&amp;E ambulances, response vehicles or other specialist vehicles and trailers for emergency services. 6 suppliers"
+    },
+    {
+      "title": "Lot 5: Car Share Solutions",
+      "expires": "20/03/2027",
+      "description": "Including dedicated vehicles, publicly accessible vehicles, and mixed use vehicles. 3 suppliers"
+    }
+  ],
+  "RM6376": [],
+  "RM6268": [],
+  "RM6306": [],
+  "RM6094": [],
+  "RM6288": [],
+  "RM6238": [],
+  "RM6126": [],
+  "RM6202": [
+    {
+      "title": "Lot 1: Tail Spend Solution",
+      "expires": "25/07/2026",
+      "description": "The Tail Spend Solution will complement our existing CCS agreements instead of replacing them. Through this agreement you can buy products including, but not limited to: electrical items such as mini-solar panels, electric paper shredders and plug socket extensions kitchen appliances (white goods) such as microwaves and fridges kitchen cupboards and shelving units catering supplies such as coffee, tea, napkins, serving trays, utensils and disposable cutlery cleaning equipment such as wet wipes, hand wash dispensers and refills, and sweeping brushes computer accessories such as keyboards, extension leads, USB phone chargers, bluetooth headphones, adjustable laptop stands and HDMI cables shipping and packaging equipment such as bubble wrap, storage boxes, packaging tape and packaging tape dispensers workwear and non-clinical PPE such as knee pads, waders, high-vis clothing, aprons and identification armbands sports and outdoor equipment such as poolside volleyballs, tennis balls, ping pong balls, small football goals, bicycle pumps and brake and chain cleaner professional tools such as hammers, screwdrivers, sockets and power tools a broad and evolving range of other non-safety critical products such as winter driving kits, compressed gas, two ply tissue refill and travel pillows smoking cessation products such as vapes and e-cigarettes office equipment and supplies such as stationary and paper 2 suppliers"
+    }
+  ],
+  "RM6213": [
+    {
+      "title": "Lot 1: Vehicle Charging Infrastructure Solutions (VCIS)",
+      "expires": "23/02/2029"
+    }
+  ],
+  "RM6259": [
+    {
+      "title": "Lot 1: Business Applications",
+      "expires": "06/03/2027",
+      "description": "Access the following services: revenues and benefits solution payment processing and cash receipt civil enforcement 34 suppliers"
+    },
+    {
+      "title": "Lot 2: Education, Community Health and Social Care Solutions",
+      "expires": "06/03/2027",
+      "description": "Access the following services: learning applications and platforms academic scheduling and management solutions education management system (EMS) community health and social care solutions enterprise health solutions 30 suppliers"
+    },
+    {
+      "title": "Lot 3: Housing, Environmental and Planning Solutions",
+      "expires": "06/03/2027",
+      "description": "Access the following services: environmental planning building control local land changes regulatory services licensing property or housing management geographic information system (GIS) waste management solutions built environment 29 suppliers"
+    },
+    {
+      "title": "Lot 4: Citizen Services",
+      "expires": "06/03/2027",
+      "description": "Access the following services: library solutions democratic and citizen engagement systems museums systems sports and recreation systems registrar systems burials and crematoria solutions 9 suppliers"
+    },
+    {
+      "title": "Lot 5: Blue Light Solutions",
+      "expires": "06/03/2027",
+      "description": "Access the following services: investigation, intelligence, forensics (including digital forensics), case and custody applications surveillance and reconnaissance command and control, integrated command and control systems (ICCS) emergency response and crisis management fraud detection digital asset management recording and audio-visual data analytics (including management information and business intelligence) 33 suppliers"
+    }
+  ],
+  "RM6353": []
+}

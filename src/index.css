@@ -1,0 +1,89 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 98%;
+    --foreground: 150 10% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 150 10% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 150 10% 15%;
+
+    --primary: 152 60% 36%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 150 20% 94%;
+    --secondary-foreground: 150 10% 25%;
+
+    --muted: 150 10% 94%;
+    --muted-foreground: 150 10% 45%;
+
+    --accent: 152 60% 36%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 71% 35%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 150 10% 15%;
+
+    --border: 150 10% 88%;
+    --input: 150 10% 88%;
+    --ring: 152 60% 36%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 150 10% 25%;
+    --sidebar-primary: 152 60% 36%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 150 20% 94%;
+    --sidebar-accent-foreground: 150 10% 15%;
+    --sidebar-border: 150 10% 90%;
+    --sidebar-ring: 152 60% 36%;
+
+    --chart-1: 152 60% 36%;
+    --chart-2: 168 60% 40%;
+    --chart-3: 142 71% 35%;
+    --chart-4: 38 92% 50%;
+    --chart-5: 199 89% 48%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+@layer utilities {
+  .glass-card {
+    @apply bg-card border border-border/50 rounded-xl shadow-sm;
+  }
+  .stat-value {
+    @apply text-3xl font-bold tracking-tight;
+  }
+  .stat-label {
+    @apply text-sm text-muted-foreground font-medium;
+  }
+  .badge-live {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-success/15 text-success;
+  }
+  .badge-closing {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-warning/15 text-warning;
+  }
+  .badge-awarded {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/15 text-primary;
+  }
+}

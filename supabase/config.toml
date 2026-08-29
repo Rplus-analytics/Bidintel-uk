@@ -1,0 +1,31 @@
+project_id = "wklmkjmdrajxvvizkxkk"
+
+[functions.generate-tender-embedding]
+verify_jwt = false
+
+[functions.backfill-tick]
+verify_jwt = false
+
+[functions.backfill-raw-cf]
+verify_jwt = false
+
+[functions.normalize-raw-cf]
+verify_jwt = false
+
+[functions.ingest-cf-native]
+verify_jwt = false
+
+[functions.scrape-cf-notice]
+verify_jwt = false
+
+[functions.ingest-cf-bulk]
+verify_jwt = false
+
+[functions.backfill-cf-bulk-tick]
+verify_jwt = false
+
+[functions.daily-search-alerts]
+verify_jwt = false
+
+[functions.scrape-ccs-digital-outcomes]
+verify_jwt = false

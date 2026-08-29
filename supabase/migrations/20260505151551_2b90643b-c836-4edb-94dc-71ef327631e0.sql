@@ -1,0 +1,1 @@
+UPDATE public.backfill_state SET completed = true WHERE source = 'contracts_scotland';

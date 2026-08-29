@@ -1,0 +1,1 @@
+ALTER VIEW public.tenders_master SET (security_invoker = true);

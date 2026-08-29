@@ -1,0 +1,1 @@
+UPDATE public.backfill_state SET completed=false, year=2015, month0=0, cursor_date='2015-01-01' WHERE source='cf_native';

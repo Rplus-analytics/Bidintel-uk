@@ -1,0 +1,1 @@
+UPDATE saved_searches SET last_alerted_at = NULL WHERE active = true;

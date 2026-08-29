@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "Authenticated read saved_searches" ON public.saved_searches;
