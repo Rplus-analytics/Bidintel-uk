@@ -1,0 +1,18 @@
+{
+  "name": "@bidintel-aws/contracts-finder",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Contracts Finder (UK) V2 search proxy — Lambda port of the Supabase edge function",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "package": "npm run build && cd dist && zip -qr ../contracts-finder.zip ."
+  },
+  "engines": { "node": ">=20" },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^22.16.5",
+    "typescript": "^5.8.3"
+  }
+}
