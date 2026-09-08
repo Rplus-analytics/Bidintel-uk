@@ -1,0 +1,41 @@
+# Copy to terraform.tfvars and adjust. terraform.tfvars is gitignored.
+#
+# No secrets belong in this file — the Cognito stack has none. Client IDs are
+# public values (they ship in the SPA bundle), and no client secret is generated.
+
+aws_region  = "eu-west-2"
+environment = "prod"
+name_prefix = "bidintel"
+
+# Must be globally unique across all AWS accounts. Add a suffix if taken.
+cognito_domain_prefix = "bidintel-auth"
+
+api_identifier = "https://api.bidintel.rplusai.co.uk"
+
+spa_callback_urls = [
+  "https://bidintel.rplusai.co.uk/auth/callback",
+  "http://localhost:8080/auth/callback",
+]
+
+spa_logout_urls = [
+  "https://bidintel.rplusai.co.uk/auth",
+  "http://localhost:8080/auth",
+]
+
+# Every MCP client's callback must be listed — Cognito has no dynamic client
+# registration. See AUTH-MIGRATION-PLAN.md § "MCP and OAuth".
+mcp_callback_urls = [
+  "https://claude.ai/api/mcp/auth_callback",
+  "http://localhost:33418/oauth/callback",
+]
+
+# 8 matches the current Supabase behaviour exactly; 12 is the default here
+# because every user resets their password during migration regardless.
+password_minimum_length = 12
+
+mfa_configuration = "OPTIONAL"
+
+# Uncomment once an SES identity is verified. Without it, Cognito's built-in
+# sender is capped at 50 emails/day.
+# ses_source_arn = "arn:aws:ses:eu-west-2:123456789012:identity/bidintel.rplusai.co.uk"
+# ses_from_email = "no-reply@bidintel.rplusai.co.uk"

@@ -1,0 +1,19 @@
+{
+  "name": "@bidintel-aws/ingest-trigger",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Admin fan-out trigger (HTTP, not cron) — Lambda port, DB+auth stubbed",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "esbuild index.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "package": "npm run build && cd dist && zip -qr ../ingest-trigger.zip ."
+  },
+  "engines": { "node": ">=20" },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^22.16.5",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.8.3"
+  }
+}

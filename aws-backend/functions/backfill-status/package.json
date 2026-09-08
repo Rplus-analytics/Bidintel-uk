@@ -1,0 +1,19 @@
+{
+  "name": "@bidintel-aws/backfill-status",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Recomputes source/derived status via RPCs (on-demand HTTP) — Lambda port, DB stubbed",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "esbuild index.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "package": "npm run build && cd dist && zip -qr ../backfill-status.zip ."
+  },
+  "engines": { "node": ">=20" },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^22.16.5",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.8.3"
+  }
+}
