@@ -321,7 +321,9 @@ across **all 17 enabled regions**; nothing was created, modified or deleted by t
 
 ```
 Account : 008041477140
-Identity: arn:aws:iam::008041477140:user/karan@rplusai.co.uk   (IAM user, long-lived keys)
+Identity: arn:aws:iam::008041477140:user/<colleague>   (IAM user, long-lived access keys,
+          belonging to a team member other than the person running the migration —
+          so CloudTrail attributes all of this work to them)
 Region  : eu-north-1 (Stockholm) — CONFIRMED AS THE TARGET REGION on 2026-09-10.
           Every artefact in aws-backend/ has been updated from its previous
           eu-west-2 (London) default to match.
