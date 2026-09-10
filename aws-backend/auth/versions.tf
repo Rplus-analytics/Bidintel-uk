@@ -30,7 +30,7 @@ terraform {
   # backend "s3" {
   #   bucket         = "bidintel-tfstate"
   #   key            = "auth/terraform.tfstate"
-  #   region         = "eu-west-2"
+  #   region         = "eu-north-1"
   #   encrypt        = true
   #   dynamodb_table = "bidintel-tfstate-lock"
   # }

@@ -1,7 +1,7 @@
 variable "aws_region" {
   description = "AWS region for the User Pool. Keep it in the same region as the API Gateway and RDS instance."
   type        = string
-  default     = "eu-west-2" # London — UK procurement data, UK users
+  default     = "eu-north-1" # Stockholm — where bidintel-1 lives (region decision, 2026-09-10)
 }
 
 variable "environment" {

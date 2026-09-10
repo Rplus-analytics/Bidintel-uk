@@ -3,7 +3,7 @@
 # No secrets belong in this file — the Cognito stack has none. Client IDs are
 # public values (they ship in the SPA bundle), and no client secret is generated.
 
-aws_region  = "eu-west-2"
+aws_region  = "eu-north-1"
 environment = "prod"
 name_prefix = "bidintel"
 
@@ -37,5 +37,5 @@ mfa_configuration = "OPTIONAL"
 
 # Uncomment once an SES identity is verified. Without it, Cognito's built-in
 # sender is capped at 50 emails/day.
-# ses_source_arn = "arn:aws:ses:eu-west-2:123456789012:identity/bidintel.rplusai.co.uk"
+# ses_source_arn = "arn:aws:ses:eu-north-1:123456789012:identity/bidintel.rplusai.co.uk"
 # ses_from_email = "no-reply@bidintel.rplusai.co.uk"
