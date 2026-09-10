@@ -22,3 +22,23 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# ---------------------------------------------------------------------------
+# Lovable Cloud project exports — NEVER COMMIT
+# These contain personal data (user emails, profiles) and bcrypt password
+# hashes from auth.users. Inspect schema only; never print row data.
+# Patterns are deliberately broad because the exact filename Lovable emits
+# has not been confirmed — widen further rather than risk a commit.
+# ---------------------------------------------------------------------------
+*export*.sql
+*export*.sql.gz
+*export*.zip
+*export*.tar
+*export*.tar.gz
+*export*.dump
+*export*.backup
+lovable-export*/
+bidintel-export*/
+supabase-export*/
+*.pgdump
+*.dump

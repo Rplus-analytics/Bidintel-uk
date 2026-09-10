@@ -92,14 +92,21 @@ Bucket versioning, which native locking depends on, is enabled. A stale lock is 
 - **A custom parameter group.** `bidintel-1` uses `default.postgres18`, which cannot be edited and
   has `shared_preload_libraries = pg_stat_statements,pg_tle`. **`pg_cron` is therefore not enabled**
   — though on AWS that matters less, because EventBridge replaces it.
-- **The schema itself.** Nothing has been created on `bidintel-1` — see §d.
+- **A clean, complete schema.** `bidintel-1` holds a partial manual CSV import (see §d) — no vector
+  columns, `awards` doubled, tables missing or empty, staging leftovers. **It is discarded, not
+  repaired.** The schema comes from the **migrations plus the dashboard-added columns** (the
+  migrations alone are incomplete — see the bugs section), and the data from the **official Lovable
+  Cloud export**.
 - **The GUC-based RLS SQL** — designed but not written.
 - **A non-owner application role** that does not bypass RLS.
 
 ### Resources created
 `aws_db_parameter_group` (family `postgres18`) applied to `bidintel-1` (**reboot required**) ·
-extensions `vector`, `pg_trgm`, `pgcrypto` · the full schema · `tenders_embedding_hnsw_idx` ·
-roles `bidintel_app` (non-owner) and `bidintel_migrator`.
+extensions `vector`, `pg_trgm`, `pgcrypto` · Supabase role stubs (`anon`, `authenticated`,
+`service_role`, …, all `NOLOGIN`) and the `auth` schema, so the export's `GRANT`s and RLS policies
+restore · `auth.uid()`/`auth.role()`/`auth.jwt()` GUC shims · the schema from migrations **plus the
+dashboard-added columns** · `tenders_embedding_hnsw_idx` (built with raised `maintenance_work_mem`) ·
+roles `bidintel_app` (non-owner) and `bidintel_migrator` · scratch DB `bidintel_restore_test`.
 
 ### Instance sizing — `db.m7g.large` is oversized
 
@@ -136,8 +143,9 @@ index and ordinary query traffic. **Memory is not the constraint — CPU is.**
    fit, pgvector falls back to a much slower on-disk build. Budget ~200–256 MB; set it in the phase 2
    custom parameter group. Fine even on `t4g.medium` (4 GiB) as a session-scoped setting.
 
-**Recommendation: `db.t4g.medium` ($47.45), and resize later if the metrics say so.** The database is
-empty, there are 7 users, and resizing is a reboot. Starting at `m7g.large` costs **$981/year** more
+**Recommendation: `db.t4g.medium` ($47.45), and resize later if the metrics say so.** The database
+will be reloaded from scratch, there are 7 users, and resizing is a reboot. Starting at `m7g.large`
+costs **$981/year** more
 than `t4g.medium` for capacity nothing is currently using. If burstable CPU makes you uneasy,
 `t4g.large` at $94.90 keeps the same 8 GiB as today and still saves $412/year.
 
@@ -158,9 +166,11 @@ Multi-AZ roughly doubles the instance line. At 7 users, single-AZ with 7-day bac
 revisit before this is business-critical.
 
 ### Needs your approval
-- ⚠️ **Rebooting `bidintel-1`** to attach the parameter group. Harmless while empty; an outage later.
-- ⚠️ **Whether `bidintel-1` is reused or recreated.** If it is empty (§d), recreating it in a private
-  subnet from the start is cleaner than retrofitting phase 3 around it.
+- ⚠️ **Rebooting `bidintel-1`** to attach the parameter group. It now holds data, so this is a real (brief) outage — though nothing is using the database yet.
+- 🚨 **Dropping the existing contents of `bidintel-1`.** They are a partial manual import with no
+  independent value (§d). Nothing is lost — the source of truth is Lovable Cloud. This also makes it
+  cheap to recreate the instance in a private subnet rather than retrofit phase 3 around it.
+- ⚠️ **Spending an export on the test restore** — one per day.
 - ⚠️ **Multi-AZ: yes or no.** Roughly doubles the instance line.
 - ⚠️ **Instance size** — recommend downsizing to `t4g.medium`, saving $981/year. Requires a reboot.
 
@@ -317,19 +327,20 @@ than the long-lived IAM user keys currently in `~/.aws/credentials`.
 
 ### Missing
 - A feature flag (`VITE_AUTH_PROVIDER` / `VITE_API_BASE`) to run both backends side by side.
-- The delta-sync script.
 - A written rollback runbook.
+- A rehearsed restore — the test restore in phase 2 is the rehearsal.
 
 ### Sequence
-1. Freeze Supabase ingestion (disable `pg_cron` jobs).
-2. Final delta-sync by `updated_at`/`created_at`.
-3. Verify counts + `md5` checksums per table.
+1. Freeze writes on Lovable Cloud (disable the `pg_cron` ingestion jobs). Note the time.
+2. Take a **fresh official export** (one per day — do not spend it on a rehearsal) and restore it
+   into the production database using the now-proven procedure.
+3. Verify: row counts, `duplicate_awards = 0`, RLS policy count, `auth.users` count, embedding coverage.
 4. Run the golden-query harness against both.
 5. Flip the frontend flag; keep Supabase live and readable.
 6. Watch 24-48h, then re-enable ingestion **on AWS only**.
 
 ### Rollback
-Flip the flag back. Supabase stays fully intact and running throughout — **do not decommission
+Flip the flag back. Lovable Cloud stays fully intact and running throughout — **do not decommission
 anything for at least two weeks.** The one-way door is Cognito: once users have reset passwords
 there, going back means resetting again.
 
@@ -573,52 +584,72 @@ data bug, not an error.
 **Not recommended:** a migration-trigger Lambda that verifies against Supabase on first sign-in. It
 avoids the password reset but keeps Supabase Auth reachable indefinitely, which defeats the point.
 
-## d) Which holds more recent data — Supabase or `bidintel-1`?
+## d) Where the data comes from
 
-**Expected answer: Supabase, by a wide margin** — `bidintel-1` shows every sign of being empty
-(storage flat 14 days, zero connections, no manual snapshots). But confirm it rather than assume.
+**The original question — "which holds more recent data, Supabase or `bidintel-1`?" — turned out to
+be the wrong question.** There is no second SQL database to compare against.
 
-Run this **on both** databases and compare. It is read-only, and tolerates the tables not existing:
+**The live source of truth is Lovable Cloud, which offers no direct SQL access.** Everything in
+`bidintel-1` arrived via Lovable Cloud's *per-table CSV export*, done by hand. Inspection on
+2026-09-10:
 
-```sql
--- Recency probe. Run identically on Supabase and on bidintel-1.
-SELECT 'tenders' AS table_name,
-       count(*)                      AS row_count,
-       max(created_at)               AS latest_created,
-       max(updated_at)               AS latest_updated,
-       min(created_at)               AS earliest_created
-FROM   public.tenders
-UNION ALL
-SELECT 'awards',
-       count(*), max(created_at), max(updated_at), min(created_at)
-FROM   public.awards
-ORDER  BY table_name;
-```
+| Finding | Detail |
+|---|---|
+| Tables | 20 |
+| **Vector columns** | **none at all**; no `embedding_status` column |
+| `awards` | **28,376 = exactly 2.00×** the exported 14,188 — imported twice |
+| `notices` | exists, **0 rows**; only `notices_slim` populated |
+| `companies`, `user_actions` | **do not exist** |
+| `org_name_aliases`, `saved_searches` | exist but **empty** |
+| Leftovers | `newtable` (0), `suppliers_staging` (0), `tenders_slim_staging` (19,056) |
+| Write history | 140,257 ins / 160 upd / 242 del · 157 sessions · 0 fatal |
 
-If `bidintel-1` errors with `relation "public.tenders" does not exist`, that is the answer: the
-schema was never created, and phase 2 starts from nothing.
+**Two conclusions:**
 
-To check what (if anything) is there at all:
+1. **The import was data-only.** The doubled `awards` means the `(source, external_id)` unique
+   constraint was absent — assessment open question #2, answered.
+2. **The embeddings did not survive and could not have** — no `vector` columns exist, and CSV cannot
+   carry `vector(1536)`. Open question #3, answered: **all ~20,000 embeddings must be regenerated
+   whichever provider is chosen.** This removes re-embedding cost as a differentiator in the pending
+   embedding-provider decision.
 
-```sql
-\dt public.*
-SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';
-SELECT extname, extversion FROM pg_extension ORDER BY 1;   -- is pgvector even installed?
-```
+### The replacement: Lovable Cloud's official project export
 
-I have deliberately **not** retrieved the master password. It is in Secrets Manager as
-`rds!db-43ad15dc-5195-4062-b3a0-a56409a3950b`; fetch it yourself and connect to
-`bidintel-1.c1wecgcw065t.eu-north-1.rds.amazonaws.com:5432`. Your IP is already allowed by the
-security group.
+Lovable Cloud → Overview → Advanced settings → **Export project data**, covering **schema, data, RLS
+policies and auth users**. **5 GB limit, one export per day.**
 
----
+That is strictly better than per-table CSVs — it carries the structure, the security rules and the
+user accounts that the hand-made copy lost. **It replaces both the CSV approach and any `pg_dump`
+plan**, since `pg_dump` needs a connection Lovable Cloud does not offer.
+
+| Restore | When | Into | Purpose |
+|---|---|---|---|
+| **Test** | **now** | scratch DB `bidintel_restore_test` on `bidintel-1` | Prove the procedure, surface every Supabase-ism, measure duration. Existing contents untouched. |
+| **Final** | at cutover, after a **write freeze** | production database | The real load, only once the test has passed. |
+
+The one-export-per-day cap means a botched test costs a day. Script it first.
+
+Full procedure — role/schema stubs, `auth.uid()` shims, extension handling, the filter list, and the
+post-restore embedding-coverage check — is in
+[`RESTORE-LOVABLE-EXPORT.md`](RESTORE-LOVABLE-EXPORT.md).
+
+> **Handling:** the export contains personal data and bcrypt password hashes. Never commit it (root
+> `.gitignore` has broad patterns), inspect schema only, never print row data, and delete the local
+> copy after restoring.
+
+### Confirming the current state
+
+[`docs/sql/inspect-bidintel-1.sql`](sql/inspect-bidintel-1.sql) — read-only `psql` script. Row
+counts, vector columns, the `awards` duplicate check, and a schema-completeness pass over extensions,
+triggers, functions, RLS policies and indexes. Also the post-restore verification for the test
+restore.
 
 ## Recommended order
 
 Phases are not strictly sequential. The critical path is **auth decision → Cognito → the 5 remaining
 functions → frontend**, and that can run in parallel with the database work.
 
-1. **Now, unblocked:** phase 1 apply · SES production access request · confirm `bidintel-1` is empty (§d)
+1. **Now, unblocked:** phase 1 apply · SES production access request · **test restore of the official Lovable export into a scratch database** (§d)
 2. **Then:** phase 2 (schema + RLS) — the biggest single chunk of remaining work
 3. **In parallel:** the auth decision, then phase 4's Cognito stack into a dev pool
 4. **Then:** phase 3 networking, then `db.ts` implementations, then Lambda deploys
@@ -642,6 +673,6 @@ functions → frontend**, and that can run in parallel with the database work.
 |---|---|---|
 | 1 | **Embedding provider** — Lovable / OpenAI direct / Bedrock | Phase 4, phase 3's NAT requirement, and whether a full 20k re-embed is needed |
 | 2 | **NAT gateway or not** | Phase 3, ~$34/month |
-| 3 | **Reuse or recreate `bidintel-1`**, and **downsize to `t4g.medium`** | Phase 2 and 3, ~$982/year |
+| 3 | **Downsize `bidintel-1` to `t4g.medium`** (its contents are being discarded regardless) | Phase 2 and 3, ~$982/year |
 | 4 | **Multi-AZ RDS** | Phase 2 |
 | 5 | **The four missing sources** — implement three, or remove from the UI | Phase 4 |

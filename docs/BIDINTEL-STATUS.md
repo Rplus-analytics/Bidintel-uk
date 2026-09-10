@@ -114,24 +114,42 @@ created in late July, and nothing else was ever built.
   These have now been deleted.
 - **Nothing else exists in any of the 17 enabled regions.** No application servers, no scheduling,
   no login system, no file storage, no stored application passwords.
-- **The database appears to be empty.** Its storage has not changed in 14 days and nothing has
-  connected to it. This still needs confirming by logging in, but on present evidence **no data was
-  ever migrated**.
+- **The database is NOT empty — data was imported.** *(Corrected 2026-09-10 after the row counts
+  were checked directly. An earlier reading of this document said the opposite; see "A correction"
+  below.)* `bidintel-1` holds an import of the historical CSV export: ~28,000 awards, ~19,000
+  tenders, ~19,000 notices, plus the user tables.
+- **But it is a partial, hand-made import that will not be reused.** One table — `awards` — holds
+  precisely double what it should, because it was imported twice. The search data is absent
+  entirely. Several tables are empty or missing, and leftover working tables from the manual process
+  are still lying around.
 - **The earlier work was done by hand through the AWS web console**, not scripted. There is nothing
-  to inherit, and nothing that has to be worked around.
+  to inherit in terms of automation.
 
 ### What that means for the plan
 
-Mostly good news. A hand-built, empty database is easier to deal with than a half-migrated one: there
-is no partial state to reconcile and no risk of silently inheriting a broken import. The two
-questions that were expected to determine whether the database work took days or weeks — *was the
-structure copied?* and *did the search data survive?* — are probably both moot, because there is
-nothing there.
+**Better than it first looked.** The existing import is discarded rather than repaired, and the data
+comes instead from an official export facility that Lovable Cloud now provides — one that includes
+the structure, the security rules and the user accounts, none of which the earlier hand-made copy
+carried.
+
+Both questions that were expected to determine whether this took days or weeks are now answered.
+The structure was *not* copied, only rows — which is why one table ended up doubled. And the search
+data did *not* survive, which means it must be regenerated whichever AI provider is chosen. That
+last point simplifies a pending decision rather than complicating it.
+
+### A correction
+
+An earlier version of this document concluded the database was "almost certainly empty". That was
+wrong, and the reasoning is worth recording so the mistake is not repeated: storage had been flat for
+14 days and there were zero connections in 24 hours, which was read as "no data". Flat storage only
+means **no recent writes** — the import happened before that window opened. The ~7.7 GiB in use was
+the imported data, not filesystem overhead. Inference from CloudWatch metrics was not a substitute
+for counting rows.
 
 ### Two problems the survey turned up
 
-1. **Cost.** The account has spent **$431 since late July** on infrastructure that has never been
-   used. Deleting the three unused databases removes roughly half of that going forward.
+1. **Cost.** The account has spent **$431 since late July** on infrastructure that is not yet in
+   production use. Deleting the three unused databases removes roughly half of that going forward.
 2. **Security.** Several resources were left open to the internet. Most were closed on 2026-09-10
    (see the technical section); **two items remain open at the time of writing** — an unused
    Windows server and a firewall rule allowing remote desktop access from anywhere.
@@ -151,7 +169,7 @@ Still open:
    Lovable, the very platform this project is migrating away from. Nothing has been decided about
    what happens to that. If the Lovable subscription ends before this is resolved, search quality
    degrades and no new contracts become searchable. Detail in the technical section.
-3. **Confirm the database is empty**, which takes one login and one command.
+3. **Run a test restore** of the official Lovable export into a scratch database, to prove the procedure before cutover depends on it.
 
 ## Honest assessment of where this stands
 
@@ -165,7 +183,7 @@ is a database on AWS with the correct structure and the data loaded, which is no
 the work rather than waiting on anyone.
 
 The most valuable thing that could happen this week is closing the two remaining open items above,
-and one login to `bidintel-1` to confirm it is empty.
+and a test restore of the official Lovable Cloud export into a scratch database.
 
 ---
 ---
@@ -347,23 +365,59 @@ Region  : eu-north-1 (Stockholm) — CONFIRMED AS THE TARGET REGION on 2026-09-1
 No S3 at all means **no Terraform state bucket**: the earlier work was console-driven, not IaC.
 Nothing to import, nothing to reconcile.
 
-### Is there data in `bidintel-1`? Almost certainly not
+### What is in `bidintel-1` — a partial manual CSV import, to be discarded
 
-- `FreeStorageSpace` **flat for 14 days** (192.3 → 192.4 GiB free of 200 GiB — it went *up*, which
-  is ordinary vacuum/WAL churn)
-- `DatabaseConnections` = **0** over 24h
-- ~7.7 GiB accounted for, which is within the range of an empty RDS PostgreSQL cluster's overhead
-- **No manual snapshots** before 2026-09-10 — all nine were automated backups, so there is no trace
-  of a deliberate import or restore
-- The three Aurora clusters held **40 MiB each** — the Aurora floor, i.e. definitively empty
+**Inspected 2026-09-10.** Two earlier revisions of this document were wrong about this: the first
+said the database was empty (it is not), the second said it held a clean import of the export (it
+does not). The inspection results:
 
-**Not confirmable without connecting.** The master password is in Secrets Manager; retrieve and
-check with:
+| Finding | Detail |
+|---|---|
+| Tables | 20 |
+| **Vector columns** | **None at all.** No `embedding_status` column either. |
+| `awards` | **28,376 = exactly 2.00× the exported 14,188** — imported twice |
+| `notices` | Exists but **0 rows**; only `notices_slim` is populated |
+| `companies`, `user_actions` | **Do not exist** |
+| `org_name_aliases`, `saved_searches` | Exist but **empty** |
+| Leftovers | `newtable` (0), `suppliers_staging` (0), `tenders_slim_staging` (19,056 — duplicate of `tenders`) |
+| Write history | 140,257 inserts / 160 updates / 242 deletes · 157 sessions · 0 fatal |
 
-```bash
-aws secretsmanager get-secret-value --secret-id 'rds!db-43ad15dc-5195-4062-b3a0-a56409a3950b' --profile rplusai
-psql -h bidintel-1.c1wecgcw065t.eu-north-1.rds.amazonaws.com -U postgres -c '\dt'
-```
+Populated tables match the per-table CSV export snapshot exactly, except the doubled `awards`.
+
+**What this means:**
+
+1. **The import was data-only, not schema-first.** The doubled `awards` implies the
+   `(source, external_id)` unique constraint was absent — with it, the second import would have
+   failed rather than duplicated. That answers assessment open question #2.
+2. **The embeddings did not survive, and could not have.** There are no `vector` columns anywhere.
+   A per-table CSV export cannot carry `vector(1536)`. That answers open question #3: **all ~20,000
+   embeddings must be regenerated**, whichever provider is chosen. The re-embedding cost is now a
+   constant, not a differentiator between options.
+3. **The write history confirms the shape**: one bulk load, essentially no updates, and staging
+   tables left behind. Nobody has used this database as an application database.
+
+**Conclusion: it is a partial manual import and will not be reused.**
+
+### Where the data actually comes from
+
+The live source of truth is **Lovable Cloud**, which offers **no direct SQL access** — so there is no
+second database to query, compare against, or `pg_dump`. Everything in `bidintel-1` today came from
+Lovable Cloud's *per-table CSV export*, which is why schema, constraints, policies and vectors are
+all missing.
+
+Lovable Cloud now provides an **official full project export** (Cloud → Overview → Advanced settings
+→ Export project data) covering **schema, data, RLS policies and auth users**, capped at **5 GB with
+one export per day**. That is a strictly better source than per-table CSVs, and it is what the
+migration will use.
+
+**Two restores are planned:** a **test restore now**, into a scratch database
+(`bidintel_restore_test`) alongside the existing contents, to prove the procedure and surface every
+Supabase-ism before it matters; and a **final restore at cutover**, after a write freeze on Lovable
+Cloud. Full procedure: [`RESTORE-LOVABLE-EXPORT.md`](RESTORE-LOVABLE-EXPORT.md).
+
+> The export contains **personal data and password hashes**. It must never be committed — root
+> `.gitignore` carries broad patterns for it — only its schema inspected, and never its row contents
+> printed.
 
 ### Two of the assessment's open questions now answered
 
@@ -372,7 +426,13 @@ psql -h bidintel-1.c1wecgcw065t.eu-north-1.rds.amazonaws.com -U postgres -c '\dt
   `shared_preload_libraries = pg_stat_statements,pg_tle`. `pg_cron` must be in that list, and the
   default parameter group cannot be edited — so a custom parameter group is required before any
   scheduled-job work, and none exists.
-- Q2 (DDL or CSV only?) and Q3 (did embeddings survive?) are probably moot — nothing was imported.
+- **Q2 — DDL or CSV only?** Strong evidence for **CSV data only**: the doubled `awards` table implies
+  the `(source, external_id)` unique constraint was absent during import. Confirm with section 9 of
+  `docs/sql/inspect-bidintel-1.sql`.
+- **Q3 — did the embeddings survive?** **No.** `bidintel-1` has no `vector` columns at all — a
+  per-table CSV export cannot carry them. All ~20,000 embeddings must be regenerated. Whether the
+  *official* Lovable export preserves them is a separate question, answered by the post-restore
+  check in `RESTORE-LOVABLE-EXPORT.md` step 8.
 
 ### Remediation performed 2026-09-10 (by the account owner, via the console)
 
@@ -685,7 +745,7 @@ parsing.
 | 0c | **Retry deletion protection on `bidintel-1`** — the console change did not take. | Nothing |
 | 0d | **Close the three exposed endpoints on Supabase.** Set `verify_jwt = true`, add real checks. | Nothing |
 | 1 | ~~Obtain AWS account ID, region and credentials.~~ **DONE 2026-09-10** — `008041477140`, `eu-north-1`. | — |
-| 2 | ~~Establish what the earlier team member created.~~ **DONE 2026-09-10** — four databases, nothing else, almost certainly no data. Confirm empty with one `psql` login. | — |
+| 2 | ~~Establish what the earlier team member created.~~ **DONE 2026-09-10** — four databases, no other AWS resources. `bidintel-1` holds a partial manual CSV import (no vector columns, `awards` doubled, tables missing/empty, staging leftovers). Discarded, not reused. | — |
 | 2a | ~~Decide the region.~~ **DONE 2026-09-10 — `eu-north-1` (Stockholm)**, where `bidintel-1` already lives. All Terraform defaults updated. Every service the plan needs was verified available there. | — |
 | 3 | Provision RDS: **a custom parameter group** (the default `default.postgres18` cannot be edited and lacks `pg_cron`), pgvector + pg_trgm, `vector(1536)` columns, the `tenders_embedding_hnsw_idx` HNSW index. Port `search_tenders_hybrid` — **the exact 14-arg overload**, from `pg_get_functiondef`, not from a migration file. Note the target is **PostgreSQL 18.3**, newer than the Supabase source — verify extension availability. | Step 2a |
 | 4 | Port RLS from `pg_policies` (**not** the migration files — see finding 5), swapping `auth.uid()` for the session GUC. Test with the **app role, not the owner** — owners bypass RLS and every test passes for the wrong reason. | Step 3 |
