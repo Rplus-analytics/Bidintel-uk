@@ -1,7 +1,8 @@
 # BidIntel — Project Status
 
-**Last updated:** 2026-09-08
+**Last updated:** 2026-09-10
 **Scope:** the Supabase → AWS migration, from the read-only assessment of 2026-08-10 to today.
+**Status change 2026-09-10:** AWS access obtained; the account was swept read-only for the first time. Findings in [AWS account — verified state](#aws-account--verified-state-2026-09-10).
 **Companion documents:** [`docs/migration/supabase-aws-migration-status.md`](migration/supabase-aws-migration-status.md) (the original assessment) · [`aws-backend/README.md`](../aws-backend/README.md) (deployment detail) · [`aws-backend/auth/AUTH-MIGRATION-PLAN.md`](../aws-backend/auth/AUTH-MIGRATION-PLAN.md) (auth design)
 
 ---
@@ -96,45 +97,75 @@ depending on decisions not yet made.
 | **Set up the AWS infrastructure itself** | Accounts, networking, permissions, monitoring, scheduling. | 3-5 days |
 | **Testing and switch-over** | Run both systems side by side, compare results, pick a switch-over window. | 1 week |
 
-## Current blocker
+## Blocker status — cleared 2026-09-10
 
-**There is one blocker, and it has not moved since the assessment in August: nobody working on this
-has access to the AWS account.**
+**The blocker that had held since August is gone.** Credentials were obtained on 2026-09-10 and the
+account was surveyed. For the record, the answer to the assessment's open question #1 is: **account
+`008041477140`, resources in `eu-north-1` (Stockholm)**.
 
-Every remaining item above depends on it. Without account access it is impossible to create the
-database, deploy anything, or verify the work a previous team member reportedly did.
+### What the survey found
 
-### What is needed to unblock
+The August assessment could not see the AWS side at all, and hedged that a previous team member
+might have taken the work as far as "Stage 3". The reality is **Stage 1**: some databases were
+created in late July, and nothing else was ever built.
 
-1. **Confirmation of which AWS account and region the project should use.** A previous team member
-   may have already created resources there. That cannot currently be confirmed or ruled out.
-2. **Credentials for that account**, supplied through a secure secret store — never pasted into
-   files, chat or email.
-3. **Answers to two questions about the earlier work**, which determine whether the database work is
-   days or weeks:
-   - Was the database *structure* copied, or only the raw data? Copying only the data leaves behind
-     the automatic rules and search indexes, and the system misbehaves in ways that are hard to
-     trace.
-   - Did the AI-generated search data transfer intact, or is it empty? Regenerating it costs money
-     and time.
-4. **A decision on the login system** — three viable options exist, and the choice materially
-   changes the effort. Detail is in the technical section.
+- **One database worth keeping** — `bidintel-1`, PostgreSQL 18.3, 200 GB, created 30 July.
+- **Three databases that were experiments** — created 29-30 July, each holding 40 MB, i.e. empty.
+  These have now been deleted.
+- **Nothing else exists in any of the 17 enabled regions.** No application servers, no scheduling,
+  no login system, no file storage, no stored application passwords.
+- **The database appears to be empty.** Its storage has not changed in 14 days and nothing has
+  connected to it. This still needs confirming by logging in, but on present evidence **no data was
+  ever migrated**.
+- **The earlier work was done by hand through the AWS web console**, not scripted. There is nothing
+  to inherit, and nothing that has to be worked around.
 
-### What can proceed without it
+### What that means for the plan
 
-Nothing on AWS. But the three internet-exposed maintenance jobs described above can and should be
-closed off on the current Supabase system immediately — that work is independent of the migration
-and is a matter of hours.
+Mostly good news. A hand-built, empty database is easier to deal with than a half-migrated one: there
+is no partial state to reconcile and no risk of silently inheriting a broken import. The two
+questions that were expected to determine whether the database work took days or weeks — *was the
+structure copied?* and *did the search data survive?* — are probably both moot, because there is
+nothing there.
+
+### Two problems the survey turned up
+
+1. **Cost.** The account has spent **$431 since late July** on infrastructure that has never been
+   used. Deleting the three unused databases removes roughly half of that going forward.
+2. **Security.** Several resources were left open to the internet. Most were closed on 2026-09-10
+   (see the technical section); **two items remain open at the time of writing** — an unused
+   Windows server and a firewall rule allowing remote desktop access from anywhere.
+
+### Decisions taken, and what is left
+
+**Region: decided on 2026-09-10 — Stockholm (`eu-north-1`)**, where the database already sits.
+Every design document and configuration file has been updated to match. All the AWS services the
+plan depends on were checked and are available there.
+
+Still open:
+
+1. **A decision on the login system** — three viable options, and the choice materially changes the
+   effort. Detail is in the technical section.
+2. **What replaces the AI provider.** Four features — search, the AI writing assistant, buyer
+   research, and the process that makes search work at all — currently call an AI service run by
+   Lovable, the very platform this project is migrating away from. Nothing has been decided about
+   what happens to that. If the Lovable subscription ends before this is resolved, search quality
+   degrades and no new contracts become searchable. Detail in the technical section.
+3. **Confirm the database is empty**, which takes one login and one command.
 
 ## Honest assessment of where this stands
 
-The migration is roughly **40% complete by effort, and 0% deployed**. The rewriting is genuinely
-substantial and has been verified as rigorously as possible without a live environment. But the
-remaining 60% contains the two hardest items — the database move and the login replacement — and
-neither can start until the account access question is answered.
+The migration is roughly **40% complete by effort, and 0% deployed**. The rewriting is substantial
+and has been verified as rigorously as possible without a live environment. The remaining 60% still
+contains the two hardest items — the database move and the login replacement.
 
-The most valuable thing that could happen this week is not more code. It is a fifteen-minute
-conversation that produces an AWS account ID, a region, and a set of read-only credentials.
+What changed on 2026-09-10 is that both are now *startable*. Access exists, and the earlier work
+turns out not to have produced anything that constrains the approach. The next meaningful milestone
+is a database on AWS with the correct structure and the data loaded, which is now a matter of doing
+the work rather than waiting on anyone.
+
+The most valuable thing that could happen this week is closing the two remaining open items above,
+and one login to `bidintel-1` to confirm it is empty.
 
 ---
 ---
@@ -282,6 +313,206 @@ hosted domain.
 
 **Open decision that changes the effort materially:** Cognito, custom JWT, or keep Supabase Auth
 during a hybrid phase. Eight open questions are listed at the end of the auth plan.
+
+## AWS account — verified state (2026-09-10)
+
+First read-only survey of the account. Everything below was observed via `describe`/`list` calls
+across **all 17 enabled regions**; nothing was created, modified or deleted by that survey.
+
+```
+Account : 008041477140
+Identity: arn:aws:iam::008041477140:user/karan@rplusai.co.uk   (IAM user, long-lived keys)
+Region  : eu-north-1 (Stockholm) — CONFIRMED AS THE TARGET REGION on 2026-09-10.
+          Every artefact in aws-backend/ has been updated from its previous
+          eu-west-2 (London) default to match.
+```
+
+### What exists
+
+| Resource | Detail |
+|---|---|
+| **RDS `bidintel-1`** | PostgreSQL **18.3**, `db.m7g.large`, 200 GB, encrypted, 7-day backups, created 2026-07-30. Endpoint `bidintel-1.c1wecgcw065t.eu-north-1.rds.amazonaws.com:5432`. Parameter group `default.postgres18` (unmodifiable AWS default). |
+| **EC2 `i-05e9ed85e6b3d1494`** | **Windows**, `t3.micro`, **running since 2026-07-30**, public IP `16.171.144.85`. No `Name` tag, **no key pair**. SGs `ec2-rds-1`, `launch-wizard-1`. Undocumented — almost certainly a leftover of the console's "Connect RDS to EC2" wizard. |
+| **EBS `vol-0d4eb922c79190942`** | 30 GB gp3, in-use — the EC2 root disk. |
+| **4 Elastic IPs** | All attached to `RDSNetworkInterface` ENIs. Three belong to the deleted clusters and release automatically; one belongs to `bidintel-1`. |
+| **4 Secrets Manager secrets** | `rds!cluster-*` / `rds!db-*` — AWS-managed RDS master passwords, not application secrets. |
+
+### What does not exist — in any of the 17 regions
+
+**Zero** Lambda functions · **zero** API Gateways (v1 or v2) · **zero** Cognito user pools ·
+**zero** EventBridge rules · **zero** S3 buckets · **zero** NAT gateways · **zero** load balancers.
+
+No S3 at all means **no Terraform state bucket**: the earlier work was console-driven, not IaC.
+Nothing to import, nothing to reconcile.
+
+### Is there data in `bidintel-1`? Almost certainly not
+
+- `FreeStorageSpace` **flat for 14 days** (192.3 → 192.4 GiB free of 200 GiB — it went *up*, which
+  is ordinary vacuum/WAL churn)
+- `DatabaseConnections` = **0** over 24h
+- ~7.7 GiB accounted for, which is within the range of an empty RDS PostgreSQL cluster's overhead
+- **No manual snapshots** before 2026-09-10 — all nine were automated backups, so there is no trace
+  of a deliberate import or restore
+- The three Aurora clusters held **40 MiB each** — the Aurora floor, i.e. definitively empty
+
+**Not confirmable without connecting.** The master password is in Secrets Manager; retrieve and
+check with:
+
+```bash
+aws secretsmanager get-secret-value --secret-id 'rds!db-43ad15dc-5195-4062-b3a0-a56409a3950b' --profile rplusai
+psql -h bidintel-1.c1wecgcw065t.eu-north-1.rds.amazonaws.com -U postgres -c '\dt'
+```
+
+### Two of the assessment's open questions now answered
+
+- **Q1 — which account/region?** `008041477140`, `eu-north-1`.
+- **Q4 — is `pg_cron` enabled?** **No, definitively.** `bidintel-1` uses `default.postgres18` with
+  `shared_preload_libraries = pg_stat_statements,pg_tle`. `pg_cron` must be in that list, and the
+  default parameter group cannot be edited — so a custom parameter group is required before any
+  scheduled-job work, and none exists.
+- Q2 (DDL or CSV only?) and Q3 (did embeddings survive?) are probably moot — nothing was imported.
+
+### Remediation performed 2026-09-10 (by the account owner, via the console)
+
+| Action | Verified |
+|---|---|
+| Restricted `sg-0ee45efaf95f0dce1` (`Bindintel-Db-sg`) port 5432 from `0.0.0.0/0` to `103.214.63.239/32` | ✅ confirmed |
+| Deleted `database-1`, `database-2`, `database-3` with final snapshots | ✅ in progress — instances `deleting`, clusters `backing-up`, snapshots `database-{1,2,3}-final-snapshot` `creating` |
+| Enabled deletion protection on `bidintel-1` | ❌ **did not take effect** — still `DeletionProtection: false` with no pending modification |
+
+### Open security items as of 2026-09-10
+
+| # | Item | Status |
+|---|---|---|
+| 1 | **`launch-wizard-1` (`sg-08ac652f4b2cb00bc`) allows TCP 3389 (RDP) from `0.0.0.0/0`**, and is **attached to the running Windows instance** (`eni-07b0b9e99cf01b998`, in-use). Open since 30 July. | **OPEN — highest priority** |
+| 2 | The Windows EC2 instance itself is undocumented, unused, has no key pair, and has been running six weeks. | **OPEN** — terminate unless someone claims it |
+| 3 | `bid1` (`sg-055d57fce57b486fc`) allows TCP 5432 from `0.0.0.0/0`. **Not attached to anything**, so not exploitable — but delete it before it gets attached to something. | **OPEN — low risk** |
+| 4 | `bidintel-1` deletion protection off. | **OPEN** — retry the console change |
+| 5 | `bidintel-1` is still `PubliclyAccessible: true`. Acceptable now the SG is a single IP, but a private subnet with a bastion or VPN is the stronger posture, and it is what the Lambda functions will need anyway once they are VPC-attached. | Accepted risk |
+
+Beyond those, **no security group in any of the 17 regions allows `0.0.0.0/0` or `::/0` on any
+port** — swept and confirmed.
+
+### Cost
+
+Actual spend from Cost Explorer. Everything is in `eu-north-1`; "NoRegion" is tax.
+
+| Service | Aug 2026 | Sep 1-10 | Total |
+|---|---:|---:|---:|
+| RDS | $216.46 | $94.11 | $310.57 |
+| Tax | $50.81 | $21.04 | $71.85 |
+| VPC (public IPv4 addresses) | $18.60 | $5.50 | $24.10 |
+| EC2 — Compute (the Windows box) | $14.88 | $4.36 | $19.24 |
+| EC2 — Other (the 30 GB volume) | $2.51 | $0.76 | $3.27 |
+| Secrets Manager | $1.60 | $0.49 | $2.09 |
+| **Total** | **$304.86** | **$126.26** | **$431.12** |
+
+Non-RDS spend is **$48.70**, i.e. ~$32/month, almost all of it the four public IPv4 addresses and
+the idle Windows instance. Deleting the three clusters removes three of those IPs and roughly half
+the RDS line; terminating the EC2 instance removes the rest.
+
+## Open decision: the Lovable AI Gateway dependency
+
+**This is not in the original assessment, the `aws-backend/README.md`, or the auth plan. It was
+found on 2026-09-10 while checking Bedrock availability, and it needs a decision.**
+
+The migration moves off Supabase. It does **not** currently move off Lovable — four functions call
+`https://ai.gateway.lovable.dev` with a `LOVABLE_API_KEY`, and the ported AWS versions call exactly
+the same endpoint. Lovable is the platform this project is leaving.
+
+### Exactly what each call requests
+
+| Function | Endpoint | Model | Dimensions / notes |
+|---|---|---|---|
+| `embed-tenders-batch` | `/v1/embeddings` | `openai/text-embedding-3-small` | **1536** — no `dimensions` parameter is sent, so the model's native default applies. Matches `vector(1536)`. |
+| `semantic-search` | `/v1/embeddings` | `openai/text-embedding-3-small` | **1536**, same call shape. Must match the stored vectors exactly or ranking is meaningless. |
+| `buyer-profile` | `/v1/chat/completions` | `google/gemini-2.5-flash` | Tool/function-calling, one tool `return_buyer_profile` |
+| `draft-bid-response` | `/v1/chat/completions` | `google/gemini-2.5-pro` | Not yet ported — one of the 5 auth-blocked functions |
+
+Note the two embedding callers **must always agree**. `embed-tenders-batch` writes the stored
+vectors and `semantic-search` embeds the query; if they ever use different models, every similarity
+score becomes noise — silently, with no error.
+
+`generate-tender-embedding` does *not* use the gateway (it calls Voyage and OpenAI directly), and is
+broken anyway — see the bugs section.
+
+### What breaks if Lovable is switched off
+
+- **`embed-tenders-batch`** stops, so newly ingested tenders are never embedded and never appear in
+  semantic search results. Silent — the ingestion jobs keep succeeding.
+- **`semantic-search`** degrades to keyword + CPV ranking. It handles this deliberately: the embed
+  failure is caught, `embeddingAvailable: false` is returned, and the RPC still runs with a null
+  vector. So it fails gracefully, but search quality drops.
+- **`buyer-profile`** returns `AI not configured` (500).
+- **`draft-bid-response`** breaks entirely when ported.
+
+### Options
+
+| Option | Embedding model | Re-embed needed? | Notes |
+|---|---|---|---|
+| **A. Keep paying Lovable for gateway access only** | unchanged | **No** | Zero work, zero risk. But retains a dependency on the platform being exited, and a single point of failure outside AWS. |
+| **B. Call OpenAI directly** | `text-embedding-3-small` — *the same model* | **No** — vectors stay comparable | Lowest-risk exit. Needs an OpenAI account and `OPENAI_API_KEY` in Secrets Manager. Chat models need separate replacements for the two Gemini calls. |
+| **C. Move to Amazon Bedrock** | `cohere.embed-v4:0` (supports 1536, so no schema change) or `amazon.titan-embed-text-v2:0` (1024/512/256 — **would require a schema change**) | **Yes — all ~20,000 tenders** | Vectors from a different model are not comparable, so the entire corpus must be re-embedded and the HNSW index rebuilt. In exchange: everything inside AWS, IAM-authenticated, no third-party key. Bedrock in `eu-north-1` offers 43 models incl. 12 Anthropic, so the two Gemini chat calls have good replacements. |
+
+**Not yet recommended** — pending the embedding-coverage counts below, which determine how much
+re-embedding option C actually implies.
+
+### Establishing the re-embedding cost
+
+Run against the **Supabase source** database. The repo's migrations do not define the `vector`
+columns (they were added through the dashboard — see the bugs section), so this discovers them from
+the catalogue rather than assuming a list:
+
+```sql
+-- 1. Which columns are vectors, and of what dimension?
+SELECT c.relname AS table_name,
+       a.attname AS column_name,
+       format_type(a.atttypid, a.atttypmod) AS type
+FROM   pg_attribute a
+JOIN   pg_class     c ON c.oid = a.attrelid
+JOIN   pg_namespace n ON n.oid = c.relnamespace
+WHERE  n.nspname = 'public'
+  AND  a.attnum > 0
+  AND  NOT a.attisdropped
+  AND  format_type(a.atttypid, a.atttypmod) LIKE 'vector%'
+ORDER  BY 1, 2;
+
+-- 2. Coverage: populated vs total, for every vector column found above.
+SELECT c.relname AS table_name,
+       a.attname AS column_name,
+       format_type(a.atttypid, a.atttypmod) AS type,
+       (xpath('/row/c/text()', query_to_xml(
+          format('SELECT count(*) AS c FROM %I.%I WHERE %I IS NOT NULL',
+                 n.nspname, c.relname, a.attname), false, true, ''))
+       )[1]::text::bigint AS embedded_rows,
+       (xpath('/row/c/text()', query_to_xml(
+          format('SELECT count(*) AS c FROM %I.%I', n.nspname, c.relname),
+          false, true, ''))
+       )[1]::text::bigint AS total_rows
+FROM   pg_attribute a
+JOIN   pg_class     c ON c.oid = a.attrelid
+JOIN   pg_namespace n ON n.oid = c.relnamespace
+WHERE  n.nspname = 'public'
+  AND  a.attnum > 0
+  AND  NOT a.attisdropped
+  AND  format_type(a.atttypid, a.atttypmod) LIKE 'vector%'
+ORDER  BY 1, 2;
+```
+
+Both are read-only. The second counts every row in each table, so on `tenders` (~20k) it is instant;
+if a vector column ever turns up on `raw_contracts_finder` (~625k) expect it to take longer.
+
+Worth also checking the pipeline's own bookkeeping, which is cheaper than counting and shows whether
+anything is stuck:
+
+```sql
+SELECT embedding_status, count(*) FROM public.tenders GROUP BY 1 ORDER BY 2 DESC;
+```
+
+The migration assessment lists vector columns on `tenders`, `tenders_pcs`, `tenders_fts` and
+`companies`, all `vector(1536)`, plus a legacy `notices.embedding` that is **`jsonb`, not a vector**
+— the query above correctly excludes it. Only `tenders.embedding` has an HNSW index
+(`tenders_embedding_hnsw_idx`).
 
 ## Bugs and security issues found
 
@@ -447,14 +678,18 @@ parsing.
 
 | # | Step | Blocked by |
 |---|---|---|
-| 0 | **Close the three exposed endpoints on Supabase.** Set `verify_jwt = true`, add real checks. | **Nothing — do this now** |
-| 1 | Obtain AWS account ID, region and credentials via a secret store. | **The blocker.** Assessment open question #1 |
-| 2 | Establish whether the earlier team member created RDS resources, and whether they imported DDL or only CSV data. | Step 1 |
-| 3 | Provision RDS: pgvector + pg_trgm, `vector(1536)` columns, the `tenders_embedding_hnsw_idx` HNSW index. Port `search_tenders_hybrid` — **the exact 14-arg overload**, from `pg_get_functiondef`, not from a migration file. | Steps 1-2 |
+| 0a | **Close RDP to the world.** `launch-wizard-1` / `sg-08ac652f4b2cb00bc` allows 3389 from `0.0.0.0/0` and is attached to a running Windows instance. | **Nothing — do this now** |
+| 0b | **Terminate `i-05e9ed85e6b3d1494`** unless someone claims it, and delete the unattached `bid1` SG. | Nothing |
+| 0c | **Retry deletion protection on `bidintel-1`** — the console change did not take. | Nothing |
+| 0d | **Close the three exposed endpoints on Supabase.** Set `verify_jwt = true`, add real checks. | Nothing |
+| 1 | ~~Obtain AWS account ID, region and credentials.~~ **DONE 2026-09-10** — `008041477140`, `eu-north-1`. | — |
+| 2 | ~~Establish what the earlier team member created.~~ **DONE 2026-09-10** — four databases, nothing else, almost certainly no data. Confirm empty with one `psql` login. | — |
+| 2a | ~~Decide the region.~~ **DONE 2026-09-10 — `eu-north-1` (Stockholm)**, where `bidintel-1` already lives. All Terraform defaults updated. Every service the plan needs was verified available there. | — |
+| 3 | Provision RDS: **a custom parameter group** (the default `default.postgres18` cannot be edited and lacks `pg_cron`), pgvector + pg_trgm, `vector(1536)` columns, the `tenders_embedding_hnsw_idx` HNSW index. Port `search_tenders_hybrid` — **the exact 14-arg overload**, from `pg_get_functiondef`, not from a migration file. Note the target is **PostgreSQL 18.3**, newer than the Supabase source — verify extension availability. | Step 2a |
 | 4 | Port RLS from `pg_policies` (**not** the migration files — see finding 5), swapping `auth.uid()` for the session GUC. Test with the **app role, not the owner** — owners bypass RLS and every test passes for the wrong reason. | Step 3 |
-| 5 | `terraform apply` the Cognito stack into a **dev** pool. Last easy moment to change custom attributes — the schema is immutable afterwards. | Step 1 + the auth decision |
+| 5 | `terraform apply` the Cognito stack into a **dev** pool (`aws_region` now defaults to `eu-north-1`). Last easy moment to change custom attributes — the schema is immutable afterwards. | The auth decision |
 | 6 | Implement `_shared/db.ts` and the per-function `db.ts` files against RDS. VPC + NAT (these functions need outbound internet), pool `max: 1`, non-owner role. | Step 3 |
-| 7 | Deploy batch 1 + `buyer-profile` (no DB, no VPC). Byte-diff 20 fixed queries against Supabase. | Steps 1, 6 |
+| 7 | Deploy batch 1 + `buyer-profile` (no DB, no VPC). Byte-diff 20 fixed queries against Supabase. | Step 6 |
 | 8 | Deploy `embed-tenders-batch`, then `semantic-search`. Golden-query harness: 30 queries, ≥95% top-20 overlap. | Steps 3, 6 |
 | 9 | Deploy ingestion + backfill on EventBridge. **Reserved concurrency 1** on all six cursor-keeping workers. DLQ + Errors alarm on every one. | Steps 3, 6 |
 | 10 | Build `requireAuth`, port the 4 auth functions, import the 7 users, add the `NEW_PASSWORD_REQUIRED` screen. | Steps 4, 5 |
