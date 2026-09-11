@@ -1,0 +1,9 @@
+{
+  "name": "@bidintel-aws/pre-token-generation",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cognito pre-token-generation V1 trigger: adds role/app_user_id/org_id to the ID token",
+  "type": "module",
+  "main": "index.mjs",
+  "engines": { "node": ">=20" }
+}

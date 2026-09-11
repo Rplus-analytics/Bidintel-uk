@@ -19,21 +19,21 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.0"
+      version = "~> 6.0"
+    }
+    archive = {
+      source  = "hashicorp/archive"
+      version = "~> 2.4"
     }
   }
 
-  # Uncomment and fill in once an AWS account and state bucket exist. Local state
-  # is fine for a first `plan`, but a User Pool is stateful, long-lived infra —
-  # move to remote state before the first apply.
-  #
-  # backend "s3" {
-  #   bucket         = "bidintel-tfstate"
-  #   key            = "auth/terraform.tfstate"
-  #   region         = "eu-north-1"
-  #   encrypt        = true
-  #   dynamodb_table = "bidintel-tfstate-lock"
-  # }
+  backend "s3" {
+    bucket       = "bidintel-tfstate-008041477140"
+    key          = "auth/terraform.tfstate"
+    region       = "eu-north-1"
+    encrypt      = true
+    use_lockfile = true
+  }
 }
 
 provider "aws" {

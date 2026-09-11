@@ -92,11 +92,10 @@ resource "aws_cognito_user_pool" "main" {
     }
   }
 
-  dynamic "lambda_config" {
-    for_each = var.pre_token_generation_lambda_arn == null ? [] : [1]
-    content {
-      pre_token_generation = var.pre_token_generation_lambda_arn
-    }
+  # V1 trigger: customises the ID TOKEN, which works on every feature plan.
+  # V2 (access-token customisation) would require Essentials or Plus.
+  lambda_config {
+    pre_token_generation = aws_lambda_function.pre_token_generation.arn
   }
 
   # --- Standard attributes ---------------------------------------------------
@@ -202,10 +201,10 @@ resource "aws_cognito_user_group" "org_member" {
 # Resource server — OAuth scopes for the MCP server
 # ============================================================================
 #
-# Mirrors the five tools the MCP server exposes (search_tenders, get_tender,
-# search_awards, list_saved_bids, list_saved_searches). All five are read-only
-# today; bids.write exists so the SPA's write paths have a scope to request when
-# saved_bids moves behind the API.
+# Mirrors the five tools the MCP server exposes. Kept even though the MCP client
+# is not created at launch: a resource server is independent of its consumers,
+# costs nothing, and having the scopes defined up front means adding the MCP
+# client later is a one-resource change.
 
 resource "aws_cognito_resource_server" "api" {
   identifier   = var.api_identifier
@@ -305,60 +304,17 @@ resource "aws_cognito_user_pool_client" "spa" {
 }
 
 # ============================================================================
-# App client — the MCP server
+# App client — the MCP server: NOT CREATED AT LAUNCH
 # ============================================================================
 #
-# Authorization-code + PKCE, which is what MCP clients implement. A confidential
-# client (with secret) is deliberately NOT used: MCP clients are public, and the
-# secret would have nowhere safe to live.
-
-resource "aws_cognito_user_pool_client" "mcp" {
-  name         = "${var.name_prefix}-mcp"
-  user_pool_id = aws_cognito_user_pool.main.id
-
-  generate_secret = false
-
-  explicit_auth_flows = [
-    "ALLOW_REFRESH_TOKEN_AUTH",
-  ]
-
-  access_token_validity  = var.access_token_validity_minutes
-  id_token_validity      = var.id_token_validity_minutes
-  refresh_token_validity = var.refresh_token_validity_days
-
-  token_validity_units {
-    access_token  = "minutes"
-    id_token      = "minutes"
-    refresh_token = "days"
-  }
-
-  prevent_user_existence_errors = "ENABLED"
-  enable_token_revocation       = true
-
-  allowed_oauth_flows                  = ["code"]
-  allowed_oauth_flows_user_pool_client = true
-
-  allowed_oauth_scopes = concat(
-    ["openid", "email", "profile"],
-    [for s in ["tenders.read", "bids.read", "searches.read"] : "${var.api_identifier}/${s}"],
-  )
-
-  callback_urls = var.mcp_callback_urls
-
-  read_attributes = [
-    "email",
-    "name",
-    "custom:org_id",
-    "custom:app_user_id",
-  ]
-
-  # An MCP client may not change any user attribute.
-  write_attributes = []
-
-  supported_identity_providers = ["COGNITO"]
-
-  depends_on = [aws_cognito_resource_server.api]
-}
+# Dropped deliberately. The `mcp` edge function is one of the five not yet
+# ported, and nothing in the launch scope (login, tender search, buyer/supplier
+# pages, saved bids) uses it. Re-add when the MCP server is ported; the resource
+# server below already carries the scopes it will need.
+#
+# Note Cognito has no RFC 7591 dynamic client registration, so when it is added
+# every MCP client's redirect URI must be pre-registered — see
+# aws-backend/auth/AUTH-MIGRATION-PLAN.md § "MCP and OAuth".
 
 # ============================================================================
 # Hosted domain

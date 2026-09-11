@@ -53,6 +53,7 @@ variable "spa_callback_urls" {
   description = "Allowed OAuth redirect URLs for the web app. Only needed if the SPA uses the hosted UI; the direct SRP sign-in flow (the like-for-like replacement for the current form) does not use these."
   type        = list(string)
   default = [
+    "https://bidintel-drab.vercel.app/auth/callback",
     "https://bidintel.rplusai.co.uk/auth/callback",
     "http://localhost:8080/auth/callback",
   ]
@@ -62,6 +63,7 @@ variable "spa_logout_urls" {
   description = "Allowed post-logout redirect URLs for the web app."
   type        = list(string)
   default = [
+    "https://bidintel-drab.vercel.app/auth",
     "https://bidintel.rplusai.co.uk/auth",
     "http://localhost:8080/auth",
   ]
@@ -156,4 +158,20 @@ variable "deletion_protection" {
   description = "ACTIVE or INACTIVE. Keep ACTIVE — deleting a User Pool destroys every user irrecoverably."
   type        = string
   default     = "ACTIVE"
+}
+
+variable "allowed_origins" {
+  description = <<-EOT
+    Browser origins permitted to call the API. Consumed by the API Gateway CORS
+    config and by PostgREST's server-cors-allowed-origins in a later phase.
+    NOT a wildcard: the handlers currently return `*`, which must be narrowed to
+    this list before production traffic (duplicate/permissive CORS is how a
+    public API ends up readable from any site).
+  EOT
+  type        = list(string)
+  default = [
+    "https://bidintel-drab.vercel.app",
+    "https://bidintel.rplusai.co.uk",
+    "http://localhost:8080",
+  ]
 }

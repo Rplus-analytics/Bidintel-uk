@@ -26,13 +26,13 @@ terraform {
   # use_lockfile = true is S3-NATIVE locking (Terraform >= 1.10). It writes a
   # .tflock object beside the state and uses S3 conditional writes, so no
   # DynamoDB table is needed. Requires bucket versioning, which is enabled below.
-  # backend "s3" {
-  #   bucket       = "bidintel-tfstate-008041477140"
-  #   key          = "phase1/terraform.tfstate"
-  #   region       = "eu-north-1"
-  #   encrypt      = true
-  #   use_lockfile = true
-  # }
+  backend "s3" {
+    bucket       = "bidintel-tfstate-008041477140"
+    key          = "phase1/terraform.tfstate"
+    region       = "eu-north-1"
+    encrypt      = true
+    use_lockfile = true
+  }
 }
 
 provider "aws" {

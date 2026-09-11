@@ -1,6 +1,5 @@
 # Terraform
 .terraform/
-.terraform.lock.hcl
 *.tfstate
 *.tfstate.*
 *.tfplan
@@ -9,3 +8,4 @@ crash.log
 # Never commit real variable values — may contain account-specific ARNs
 terraform.tfvars
 *.auto.tfvars
+.build/
