@@ -8,11 +8,11 @@
 -- Extensions. Neither pgvector nor pg_trgm needs shared_preload_libraries,
 -- so NO parameter group change and NO reboot are required.
 -- ---------------------------------------------------------------------------
-CREATE EXTENSION IF NOT EXISTS vector;      -- 0.8.1 available on this instance
-CREATE EXTENSION IF NOT EXISTS pg_trgm;     -- 1.6 — required by the gin_trgm_ops
-                                            -- indexes in Lovable's DDL.sql
-CREATE EXTENSION IF NOT EXISTS pgcrypto;    -- gen_random_uuid() defaults
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- schema.sql installs its own extensions with explicit target schemas
+-- (vector+pg_trgm -> public, pgcrypto+uuid-ossp+pg_stat_statements -> extensions).
+-- The prelude only creates the schemas they need, so the dump applies unchanged.
+CREATE SCHEMA IF NOT EXISTS extensions;
+CREATE SCHEMA IF NOT EXISTS vault;
 
 -- ---------------------------------------------------------------------------
 -- Supabase role stubs. NOLOGIN: they exist only so GRANT/ALTER OWNER
