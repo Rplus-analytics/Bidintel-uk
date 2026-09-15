@@ -10,7 +10,28 @@ type OAuthApi = {
   denyAuthorization: (id: string) => Promise<{ data: any; error: any }>;
 };
 
-const oauth = () => (supabase.auth as unknown as { oauth: OAuthApi }).oauth;
+// NOT AVAILABLE ON AWS. `supabase.auth.oauth` is a Lovable Cloud extension that
+// backs the MCP consent flow at /.lovable/oauth/consent; Cognito has no
+// equivalent and the `mcp` edge function was never ported. Without this guard
+// the page throws a TypeError on undefined and renders a blank screen.
+//
+// Reaching this route at all requires a Lovable MCP client, so on AWS it is
+// unreachable in normal use. See docs/DEPLOYMENT-STATUS.md.
+const oauth = (): OAuthApi => {
+  const api = (supabase.auth as unknown as { oauth?: OAuthApi }).oauth;
+  if (!api) {
+    const unavailable = async () => ({
+      data: null,
+      error: { message: "The MCP OAuth consent flow is not available on AWS." },
+    });
+    return {
+      getAuthorizationDetails: unavailable,
+      approveAuthorization: unavailable,
+      denyAuthorization: unavailable,
+    };
+  }
+  return api;
+};
 
 export default function OAuthConsent() {
   const [params] = useSearchParams();

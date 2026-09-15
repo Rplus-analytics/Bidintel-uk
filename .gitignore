@@ -63,3 +63,9 @@ supabase-export*/
 terraform.tfstate
 terraform.tfstate.*
 terraform.tfstate.backup
+
+# Local environment overrides. Already matched by *.local above, but stated
+# explicitly: this file holds the AWS endpoints a developer tests against and
+# must never be committed.
+.env.local
+.env.*.local

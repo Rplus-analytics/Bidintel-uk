@@ -1,5 +1,8 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { Session, User } from "@supabase/supabase-js";
+// Cognito's session/user shapes, not Supabase's. Structurally these carry what
+// this context actually reads — user.id, user.email, session.access_token — so
+// nothing below changes. See integrations/aws/cognito.ts.
+import type { AuthSession as Session, AuthUser as User } from "@/integrations/aws/cognito";
 import { supabase } from "@/integrations/supabase/client";
 
 export type OrgRole = "admin" | "member";

@@ -11,30 +11,57 @@ Companion docs: [`DEPLOYMENT-PLAN.md`](DEPLOYMENT-PLAN.md) · [`BIDINTEL-STATUS.
 
 ## ⏭️ EXACT NEXT STEP
 
-**Deploy the five launch Lambdas, then the HTTP API.** Nothing is half-applied; the last completed
-action was the grant lock-down and RLS proof below, plus the `buyer-profile` OpenAI repoint.
+**Log in at http://localhost:8080 and work through the test checklist below.**
+The full stack is deployed and smoke-tested; what remains is a human comparing
+the AWS app against Lovable side by side.
 
-In order:
+```bash
+cd ~/Bidintel && git checkout aws-migration
+cp .env.example .env.local          # values are already filled in
+npm install                          # adds amazon-cognito-identity-js
+npm run dev                          # http://localhost:8080
+```
 
-1. **Deploy Lambdas.** `semantic-search` + `buyer-profile` **in the VPC** (subnets
-   `subnet-0ff77108be79ccdd5`, `subnet-0a1094478008deedb`, SG `sg-054bd4a03c245e2e7`) with
-   `DATABASE_SECRET_ARN` → `bidintel/api-db` and `OPENAI_API_KEY` from `bidintel/openai`.
-   `contracts-finder`, `contracts-scotland`, `find-a-tender` **outside the VPC** — no DB, no NAT
-   cost, no ENI cold start. Each execution role gets `secretsmanager:GetSecretValue` scoped to only
-   the secret it needs.
-2. **HTTP API** with a Cognito JWT authorizer on every route (issuer
-   `https://cognito-idp.eu-north-1.amazonaws.com/eu-north-1_9LKk8RR6t`, audience
-   `4ua1vhje9gmm3kekuk6spvf1r`). CORS: `http://localhost:8080` and
-   `https://bidintel-drab.vercel.app` only.
-3. **PostgREST on Fargate + ALB** (plan first). HTTP only — see the HTTPS risk below. ALB security
-   group restricted to the test machines' IPs, never `0.0.0.0/0`.
-4. **Frontend rewrite** on `aws-migration`, then the two test users, then local end-to-end test.
-5. **Then the ingestion adapter** — see "Required before cutover".
+Sign in as `sanjanalagisetty111@gmail.com` with the temporary password Cognito
+emailed on **15 Sep 2026** (valid 7 days, so **expires 22 Sep**). The first
+sign-in shows a "choose a new password" screen — that is the expected
+FORCE_CHANGE_PASSWORD flow, not an error.
 
-**Nothing is half-finished.** All Terraform state is in S3 and `terraform plan` is clean on every
-applied stack.
+**If the app loads but every page is empty**, the operator IP has changed. Run
+`scripts/allow-my-ip.sh`, then update `admin_cidrs` in
+`aws-backend/infra/phase6-postgrest/variables.tf` and re-apply. The ALB admits
+one `/32`.
+
+### Nothing is half-finished
+
+Every Terraform stack is applied and `terraform plan` is clean on all five.
+The frontend builds, typechecks and tests green. Nothing is mid-migration.
 
 ---
+
+## 🚩 THREE THINGS NEED YOUR DECISION
+
+**1. `rajesh@rplusai.co.uk` has no profile, so no Cognito user was created.**
+The seven rows in `profiles` include exactly one `@rplusai.co.uk` address and it
+is not Rajesh's. Creating a Cognito user without a matching `profiles.id` would
+produce a login that authenticates and then sees nothing, because `auth.uid()`
+would be NULL and every RLS policy would filter everything — which looks like a
+broken app rather than a missing record. Options: map him to the existing
+`sw…@rplusai.co.uk` profile if that is him under another address, or create a
+new profile + membership row (a write of user data into the production copy, so
+not something to do unasked).
+
+**2. This account's total Lambda concurrency limit is 10, not 1000.**
+That is the new-account default and it is shared by every function, so an
+ingestion cron run and a user search compete for the same ten slots. Reserved
+concurrency cannot be set at all while the cap is 10. Needs a Service Quotas
+increase before cutover.
+
+**3. Production hosting + HTTPS — owner: Karan.** Unchanged, and now blocking
+more than before: see the HTTP risk below.
+
+---
+
 
 ## Working rules
 
@@ -150,13 +177,102 @@ could make two overlapping runs pay twice for the same vectors.
 | `db.ts` — `semantic-search` | **DONE** — 14-arg RPC via named arguments, OpenAI query embedding. Verified end to end: real queries return correctly ranked results |
 | `db.ts` — ingestion/backfill workers | **REQUIRED BEFORE CUTOVER, not optional** — see below |
 | `buyer-profile` OpenAI repoint | **DONE** — `gpt-4o-mini`, same tool-calling contract, verified live (8-person org chart) |
-| Lambda deploys + API Gateway | not started — **next** |
+| Lambda deploys (5) | **DONE** — all five live, smoke-tested |
+| API Gateway + Cognito authorizer | **DONE** — `https://tye76qu0y9.execute-api.eu-north-1.amazonaws.com` |
+| PostgREST on Fargate + ALB | **DONE** — `http://bidintel-postgrest-1007768748.eu-north-1.elb.amazonaws.com` |
+| Frontend Cognito auth | **DONE** — builds, typechecks, 4 tests green |
+| Test users | 1 of 2 — see decision 1 above |
 | PostgREST on Fargate + ALB | not started (Terraform not yet written) |
 | Cognito test users | not created |
 | Frontend Cognito/PostgREST rewrite | not started |
 | HNSW vector index | **DONE 2026-09-15** — `tenders_embedding_hnsw_idx`, 159 MB. Column altered to `vector(1536)` first, since HNSW cannot index an unconstrained `vector`. Planner confirmed using it: top-10 nearest neighbour in 5.3 ms |
 
 ---
+
+## Every Supabase-specific API in `src/`, and what replaced it
+
+The surface turned out to be small, which is why the frontend change is 200
+lines rather than a rewrite. Nothing used Supabase Storage, Realtime, channels,
+or `.rpc()`.
+
+| Supabase API | Used at | Replacement |
+|---|---|---|
+| `supabase.from(...)` | 46 calls across 17 tables | **Unchanged.** Still the real supabase-js query builder; only its transport is repointed at our PostgREST. `postgrest-js` IS what Supabase runs |
+| `supabase.auth.signInWithPassword` | `Auth.tsx` | Cognito SRP via `amazon-cognito-identity-js` |
+| `supabase.auth.getSession` | `AuthContext.tsx`, `OAuthConsent.tsx` | `cognito.getSession()` — also the refresh path; the library exchanges the refresh token when the ID token is stale |
+| `supabase.auth.signOut` | `AuthContext.tsx` | `cognito.signOut()` — clears localStorage unconditionally |
+| `supabase.auth.onAuthStateChange` | `AuthContext.tsx` | Local listener set, same `{ data: { subscription } }` return shape |
+| `supabase.auth.oauth` (Lovable extension) | `OAuthConsent.tsx` | **No equivalent.** Guarded to return a clear error instead of throwing on `undefined`. Route `/.lovable/oauth/consent` is unreachable without a Lovable MCP client |
+| `supabase.functions.invoke` | 9 call sites | `POST ${VITE_API_BASE_URL}/<name>`, Cognito ID token attached |
+| Supabase Storage | — | not used |
+| Supabase Realtime / channels | — | not used |
+| `supabase.rpc()` | — | not used directly; `search_tenders_hybrid` is reached through the `semantic-search` Lambda |
+
+### The nine `invoke()` call sites
+
+| Function | Call site | Status |
+|---|---|---|
+| `semantic-search` | `hooks/useSemanticSearch.ts` | **live** |
+| `buyer-profile` | `pages/Buyers.tsx`, `pages/ContractsFinderBuyers.tsx` | **live** |
+| `contracts-finder` | `lib/contractsFinder.ts` | **live** |
+| `contracts-scotland` | `lib/contractsFinder.ts` | **live** |
+| `find-a-tender` | `lib/contractsFinder.ts` | **live** |
+| `sync-notices` | `pages/Admin.tsx` | ported, not exposed through the API (it is a worker) |
+| `embed-tenders-batch` | `components/EmbeddingStatusCard.tsx` | ported, not exposed through the API (it is a worker) |
+| `draft-bid-response` | `components/BidDraftPanel.tsx` | **never ported** |
+| `daily-search-alerts` | `pages/SavedSearches.tsx` | **never ported** |
+| `admin-create-user` | `pages/Admin.tsx` | **replaced by Cognito** — create users in the Cognito console for now |
+| `ted-eu`, `sell2wales`, `etenders-ireland`, `etenders-ni` | `lib/contractsFinder.ts` (`searchAllSources`) | **never existed on Supabase either** — `searchAllSources` has always fired them into a `Promise.allSettled` that swallows the failure |
+
+Each of these returns a clear named error rather than a 404, so a missing
+function is reported as itself instead of as "search failed".
+
+## Test checklist — AWS vs Lovable, side by side
+
+Open the same page in both and compare. **A page that renders but shows no data
+is the signature of an auth problem, not a data problem** — RLS removes rows, it
+does not raise.
+
+### Auth
+- [ ] Sign in with a wrong password → "Incorrect email or password"
+- [ ] Sign in with an unknown email → **the same message** (deliberate: the pool has `PreventUserExistenceErrors` on, so the two must be indistinguishable or it leaks which accounts exist)
+- [ ] First sign-in → "choose a new password" screen appears
+- [ ] New password below policy (12 chars, upper, lower, number) → rejected with the reason
+- [ ] Mismatched confirmation → "Passwords do not match", no network call
+- [ ] Successful sign-in → lands on the dashboard, org name shown in the header
+- [ ] **Refresh the page → still signed in** (session restored from localStorage)
+- [ ] **Leave the tab open for over an hour, then act** → still works (ID token is 60 min; the refresh token is 30 days and the exchange is transparent)
+- [ ] Sign out → returns to `/auth`, and a refresh does not restore the session
+- [ ] Visit a protected route while signed out → redirected to `/auth`
+
+### Pages
+- [ ] `/` Dashboard — counts and recent tenders
+- [ ] `/contracts` Contracts
+- [ ] `/open-bids` Open bids, and `/open-bids/:id` detail
+- [ ] `/pipeline` Bid pipeline
+- [ ] `/expiring` Expiring contracts
+- [ ] `/analytics` Analytics charts
+- [ ] `/buyers` Buyers — **click a buyer to generate a profile** (exercises `buyer-profile` on OpenAI; expect a description and an org chart)
+- [ ] `/suppliers` Suppliers
+- [ ] `/saved-searches` — **the per-user table.** You should see only your own
+- [ ] `/conferences`, `/speakers`, `/speakers/:slug`
+- [ ] `/frameworks` Frameworks
+- [ ] `/contracts-finder` — live Contracts Finder search
+- [ ] `/contracts-finder-buyers`
+- [ ] `/settings`
+- [ ] `/admin` — visible only to org admins
+
+### Search
+- [ ] Semantic search returns relevant results, not just keyword matches
+- [ ] A query with no matches returns an empty state, not an error
+- [ ] Search on Lovable and on AWS for the same term — **ordering should be very close**; the embeddings are identical vectors (same `text-embedding-3-small` model), so large differences mean something is wrong
+
+### Known differences — expected, not bugs
+- [ ] "Create user" in `/admin` fails — `admin-create-user` is replaced by Cognito
+- [ ] Bid drafting fails — `draft-bid-response` not ported
+- [ ] "Send alerts" on saved searches fails — `daily-search-alerts` not ported
+- [ ] "All sources" search returns fewer sources — TED, Sell2Wales, eTenders IE/NI never existed
+- [ ] **Data is a point-in-time copy from 11 Sep and is not updating** — see below
 
 ## Required before cutover: the ingestion adapter
 
