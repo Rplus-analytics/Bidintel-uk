@@ -30,19 +30,6 @@ variable "rds_security_group_id" {
   default = "sg-0ee45efaf95f0dce1"
 }
 
-variable "admin_cidrs" {
-  description = <<-EOT
-    THE ONLY IPs THAT MAY REACH THE ALB. Never 0.0.0.0/0 while the listener is
-    plain HTTP.
-
-    This is a home/office IP and it changes. When it does, PostgREST stops
-    responding and the app shows empty pages; re-run scripts/allow-my-ip.sh,
-    which updates the RDS rule, then update this list and re-apply.
-  EOT
-  type        = list(string)
-  default     = ["122.172.82.225/32"]
-}
-
 variable "cognito_audience" {
   description = "SPA client ID. PostgREST rejects any token whose `aud` is not this."
   type        = string

@@ -17,16 +17,28 @@ resource "aws_security_group" "alb" {
   tags        = { Name = "${var.name_prefix}-postgrest-alb" }
 }
 
-resource "aws_vpc_security_group_ingress_rule" "alb_http" {
-  for_each = toset(var.admin_cidrs)
-
-  security_group_id = aws_security_group.alb.id
-  description       = "HTTP from an approved test machine"
-  cidr_ipv4         = each.value
-  from_port         = 80
-  to_port           = 80
-  ip_protocol       = "tcp"
-}
+# ---------------------------------------------------------------------------
+# NO ingress rules here, on purpose
+# ---------------------------------------------------------------------------
+#
+# The ALB's allowlist is NOT managed by Terraform. Testers are on dynamic home
+# and office ISP addresses that change without warning — when one does, the app
+# goes blank and the fix has to be a ten-second command, not a plan-and-apply
+# against a stack that also owns the load balancer and the ECS service.
+#
+# `scripts/allow-ip.sh <label>` owns these rules instead. It tags each rule's
+# description with `bidintel-access:<label>` and only ever revokes rules
+# carrying the same label, so one person's address can be updated without
+# disturbing anyone else's.
+#
+# Terraform still owns the security GROUP, its egress, and the RDS/task rules
+# that reference security groups rather than addresses — the parts that are
+# genuinely infrastructure. A per-person dynamic IP is operational data.
+#
+# This split was not the original design: Terraform did manage an `admin_cidrs`
+# ingress rule, and the first run of the new script revoked it, leaving the
+# stack drifted and wanting to recreate a duplicate. Removed here and dropped
+# from state with `terraform state rm`.
 
 resource "aws_vpc_security_group_egress_rule" "alb_to_task" {
   security_group_id            = aws_security_group.alb.id

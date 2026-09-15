@@ -3,9 +3,9 @@ output "postgrest_url" {
   value       = "http://${aws_lb.main.dns_name}"
 }
 
-output "alb_allowed_cidrs" {
-  description = "The only IPs that can reach PostgREST."
-  value       = var.admin_cidrs
+output "alb_allowlist_note" {
+  description = "Who may reach the ALB is managed by scripts/allow-ip.sh, not by Terraform. Run `scripts/allow-ip.sh --list` to see the current allowlist."
+  value       = "managed out of band: scripts/allow-ip.sh <label> [ip]"
 }
 
 output "cluster_name" { value = aws_ecs_cluster.main.name }

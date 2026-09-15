@@ -41,15 +41,19 @@ The frontend builds, typechecks and tests green. Nothing is mid-migration.
 
 ## 🚩 THREE THINGS NEED YOUR DECISION
 
-**1. `rajesh@rplusai.co.uk` has no profile, so no Cognito user was created.**
-The seven rows in `profiles` include exactly one `@rplusai.co.uk` address and it
-is not Rajesh's. Creating a Cognito user without a matching `profiles.id` would
-produce a login that authenticates and then sees nothing, because `auth.uid()`
-would be NULL and every RLS policy would filter everything — which looks like a
-broken app rather than a missing record. Options: map him to the existing
-`sw…@rplusai.co.uk` profile if that is him under another address, or create a
-new profile + membership row (a write of user data into the production copy, so
-not something to do unasked).
+**1. ~~Test user mapping~~ — RESOLVED 15 Sep.** The real accounts are
+`@rplusanalytics.com`; `@rplusai.co.uk` was a wrong domain. Both Cognito users
+now exist and are mapped to their existing `profiles.id`, so `auth.uid()`
+returns the same UUID it did on Lovable and no foreign key changes.
+
+| User | Role | Group | Status |
+|---|---|---|---|
+| `sanjanalagisetty111@gmail.com` | admin | `org_admin` | invited 15 Sep |
+| `rajesh.boorgu@rplusanalytics.com` | admin | `org_admin` | invited 15 Sep |
+
+Temporary passwords are valid **7 days — they expire 22 Sep 2026.** No
+shared-profile workaround was used, and no user exists without a real profile
+behind it.
 
 **2. This account's total Lambda concurrency limit is 10, not 1000.**
 That is the new-account default and it is shared by every function, so an
@@ -181,7 +185,7 @@ could make two overlapping runs pay twice for the same vectors.
 | API Gateway + Cognito authorizer | **DONE** — `https://tye76qu0y9.execute-api.eu-north-1.amazonaws.com` |
 | PostgREST on Fargate + ALB | **DONE** — `http://bidintel-postgrest-1007768748.eu-north-1.elb.amazonaws.com` |
 | Frontend Cognito auth | **DONE** — builds, typechecks, 4 tests green |
-| Test users | 1 of 2 — see decision 1 above |
+| Test users | **2 of 2** — both mapped to real profiles, both invited 15 Sep (passwords expire 22 Sep) |
 | PostgREST on Fargate + ALB | not started (Terraform not yet written) |
 | Cognito test users | not created |
 | Frontend Cognito/PostgREST rewrite | not started |
@@ -226,6 +230,71 @@ or `.rpc()`.
 
 Each of these returns a clear named error rather than a 404, so a missing
 function is reported as itself instead of as "search failed".
+
+## Setting up a second tester (what Rajesh needs)
+
+> **There is no shareable test URL.** Vercel deploys the `main` branch against
+> Lovable Cloud, and previewing `aws-migration` there needs a Vercel Pro seat
+> we do not have. Even with one it would not work yet: a Vercel preview is
+> HTTPS, and browsers block an HTTPS page from calling the **HTTP** PostgREST
+> ALB as mixed content. So **every tester runs the app locally** until the
+> HTTPS decision lands. This is a consequence of that open decision, not a
+> separate problem.
+
+**1. Repo access.** Push access to `Rplus-analytics/Bidintel-uk`, then:
+
+```bash
+git clone https://github.com/Rplus-analytics/Bidintel-uk.git
+cd Bidintel-uk
+git checkout aws-migration          # NEVER test on main — that is Lovable
+```
+
+**2. Node 20 or newer.** `node -v`. Vite 5 and the build both assume it; the
+repo has no `.nvmrc`, so this has to be checked by hand.
+
+```bash
+npm install                          # includes amazon-cognito-identity-js
+```
+
+**3. `.env.local`.** Copy `.env.example` — the values are already filled in and
+none of them is a secret:
+
+```
+VITE_COGNITO_USER_POOL_ID=eu-north-1_9LKk8RR6t
+VITE_COGNITO_CLIENT_ID=4ua1vhje9gmm3kekuk6spvf1r
+VITE_COGNITO_REGION=eu-north-1
+VITE_POSTGREST_URL=http://bidintel-postgrest-1007768748.eu-north-1.elb.amazonaws.com
+VITE_API_BASE_URL=https://tye76qu0y9.execute-api.eu-north-1.amazonaws.com
+```
+
+**4. His IP on the security groups — the step that is easy to forget.**
+API Gateway is open to the internet and protected by the Cognito authorizer, so
+sign-in and search work from anywhere. **PostgREST does not**: the ALB admits a
+short allowlist of addresses, because the listener is plain HTTP and carries ID
+tokens in cleartext.
+
+The symptom if this is missed is misleading: **sign-in succeeds, then every page
+is empty and nothing errors visibly** — the ALB simply never answers.
+
+Someone with the `bidintel-deploy` profile runs, from the repo:
+
+```bash
+./scripts/allow-ip.sh rajesh 203.0.113.7     # his public IP
+./scripts/allow-ip.sh --list                 # confirm
+```
+
+He can find his IP at `curl https://checkip.amazonaws.com`. This opens **both**
+`tcp/5432` on the RDS security group and `tcp/80` on the ALB security group.
+Home broadband addresses change, so expect to re-run it; rules are tagged
+`bidintel-access:<label>` and only same-label rules are replaced, so updating
+one person never disconnects another.
+
+```bash
+npm run dev                          # http://localhost:8080
+```
+
+First sign-in shows a "choose a new password" screen. That is the expected
+`FORCE_CHANGE_PASSWORD` flow, not an error.
 
 ## Test checklist — AWS vs Lovable, side by side
 
@@ -457,6 +526,8 @@ and non-secret values only.
 | **Semantic search needs the OpenAI key at request time** | `semantic-search` embeds each query per request. The key is loaded in `bidintel/openai` and verified (HTTP 200, 1536 dims). Corpus embedding is complete, so this affects query embedding only; without the key it degrades to keyword + CPV ranking. |
 | **`bidintel_app` has BYPASSRLS** | Accepted for ingestion/backfill/embedding workers, which write rows for every organisation and would otherwise be blocked by the data tables' RLS policies. **It must never back a user-facing function.** Step 3 introduces a separate `bidintel_api` role (LOGIN, **NOBYPASSRLS**) for `semantic-search` and `buyer-profile`, so the user-facing path reads data tables normally and reaches user tables only through RLS. Until that role exists, no user-facing Lambda may be deployed. |
 | **Workers still on master credentials** | `embed-tenders-batch` ran with the RDS master user as a one-off. Step 4 switches all workers to `bidintel_app`. Until then, do not deploy any Lambda with master credentials. |
+| **Blank page at localhost:8080** | **FIXED 15 Sep.** `amazon-cognito-identity-js` depends on `buffer@4.9.2`, a Node shim that references the bare identifier `global`, which browsers do not have. It threw `ReferenceError: global is not defined` at import time; because the auth layer is imported near the root of the module graph, React never mounted and the page rendered blank with nothing in the UI to indicate why. Fixed with `define: { global: "globalThis" }` in `vite.config.ts`. Confirmed in headless Chrome: no exceptions, `/auth` renders the sign-in form |
+| **No shareable test URL** | Vercel deploys `main` against Lovable; previewing `aws-migration` needs a Pro seat, and an HTTPS preview cannot call the HTTP ALB anyway. Every tester must run locally — see "Setting up a second tester" |
 | **ALB is HTTP, not HTTPS** | **Cognito ID tokens (JWTs) travel in cleartext.** Acceptable only for internal local testing from known machines, over `http://localhost:8080`, with the ALB security group restricted to the test machines' IPs. **Must be replaced with HTTPS before cutover** — anyone on the network path can capture a token and replay it. ACM cannot issue for `bidintel-drab.vercel.app`; a controlled domain is required. |
 | **Operator IP churn** | The RDS security group allows a single `/32` and the operator's ISP address is dynamic. Mitigated by `scripts/allow-my-ip.sh`, which revokes the previous operator rule and adds the current IP in one call. Run it when a connection times out. |
 | **`bidintel-1` is publicly accessible** | Security group restricts to one office IP plus the Lambda SG. A private-subnet rebuild is deferred. |
