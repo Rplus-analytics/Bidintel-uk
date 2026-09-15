@@ -2,14 +2,16 @@
   "name": "@bidintel-aws/find-a-tender",
   "version": "0.1.0",
   "private": true,
-  "description": "Find a Tender (FTS) OCDS feed proxy — Lambda port of the Supabase edge function",
+  "description": "Find a Tender (FTS) OCDS feed proxy \u2014 Lambda port of the Supabase edge function",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "package": "npm run build && cd dist && zip -qr ../find-a-tender.zip ."
+    "package": "../../scripts/build-lambda.sh find-a-tender"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.145",
     "@types/node": "^22.16.5",

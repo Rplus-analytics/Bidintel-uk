@@ -19,7 +19,8 @@
 // argument notation specifically to make the binding explicit.
 
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from "aws-lambda";
-import { searchTendersHybrid, isDbConfigured } from "./db";
+import { searchTendersHybrid, isDbConfigured, type JwtClaims } from "./db";
+import { ensureSecretEnv } from "../_shared/secret-env";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -323,6 +324,10 @@ async function embed(input: string): Promise<number[]> {
   // produced the stored vectors (text-embedding-3-small) — a different model
   // puts queries in a different vector space and every similarity score becomes
   // noise, silently, with no error.
+  // Populated from Secrets Manager on cold start when Terraform supplied only
+  // an ARN. A failure here throws, and the caller's catch degrades the query to
+  // keyword + CPV ranking rather than failing the request.
+  await ensureSecretEnv("OPENAI_API_KEY", "OPENAI_SECRET_ARN");
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error("OPENAI_API_KEY missing");
   const res = await fetch("https://api.openai.com/v1/embeddings", {
@@ -349,12 +354,31 @@ function readJsonBody(event: APIGatewayProxyEventV2): any {
   }
 }
 
+/**
+ * Claims the API Gateway JWT authorizer verified, as a flat string map.
+ *
+ * Trustworthy BECAUSE the authorizer already checked the signature, issuer,
+ * audience and expiry — an unverified token never reaches this function. They
+ * are passed straight to Postgres, where they drive auth.uid() / auth.role()
+ * and therefore every RLS decision.
+ *
+ * An empty object when there is no authorizer (a direct `aws lambda invoke`, as
+ * in a smoke test). That correctly yields zero rows rather than everything: no
+ * claims means auth.role() is NULL and the policies filter the table.
+ */
+function readClaims(event: APIGatewayProxyEventV2): JwtClaims {
+  const jwt = (event.requestContext as any)?.authorizer?.jwt;
+  return (jwt?.claims ?? {}) as JwtClaims;
+}
+
 export const handler = async (
   event: APIGatewayProxyEventV2,
 ): Promise<APIGatewayProxyResultV2> => {
   if (event.requestContext?.http?.method === "OPTIONS") {
     return { statusCode: 200, headers: corsHeaders, body: "" };
   }
+
+  const claims = readClaims(event);
 
   try {
     const {
@@ -444,7 +468,7 @@ export const handler = async (
         context_terms: expansion.context,
         active_only: Boolean(activeOnly),
         intent_domain: expansion.domain || null,
-      });
+      }, claims);
     } catch (error: any) {
       const msg = error?.message || String(error);
       console.warn("hybrid rpc failed:", msg);

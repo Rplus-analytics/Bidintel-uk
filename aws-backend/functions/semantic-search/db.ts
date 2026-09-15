@@ -6,10 +6,21 @@
 // user-facing path is always subject to RLS. Until then it accepts whatever
 // DATABASE_URL / DATABASE_SECRET_ARN provides.
 //
-// Pool at module scope, max: 1 — Lambda scales by process, so a larger pool
-// multiplied by concurrency exhausts max_connections on a small instance.
+// Pool at module scope, max: 2 — Lambda scales by process, so a large pool
+// multiplied by concurrency exhausts max_connections on a small instance. Two
+// rather than one because every query now checks out a dedicated client for the
+// duration of a transaction (see withIdentity); with max: 1 a second concurrent
+// request inside the same container would queue behind the first.
 
 import { Pool } from "pg";
+
+/**
+ * The caller's identity, taken from the API Gateway JWT authorizer.
+ *
+ * Passed through to Postgres on every query. See withIdentity() below for why
+ * this is not optional.
+ */
+export type JwtClaims = Record<string, string | number | boolean | null | undefined>;
 
 export interface HybridSearchParams {
   query_embedding: number[] | null;
@@ -55,7 +66,7 @@ async function getPool(): Promise<Pool> {
   if (!conn) throw new DbNotConfiguredError("getPool");
   pool = new Pool({
     connectionString: conn,
-    max: 1,
+    max: 2,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 15_000,
     ssl: { rejectUnauthorized: false },
@@ -99,15 +110,71 @@ const SQL = `
   )
 `;
 
-export async function searchTendersHybrid(p: HybridSearchParams): Promise<any[]> {
+/**
+ * Run `fn` as the authenticated end user rather than as bidintel_api.
+ *
+ * WHY THIS IS NOT OPTIONAL — and how its absence was found. Without it, the
+ * search returned:
+ *
+ *     status=200  results=0  rpcError=null  embeddingAvailable=true
+ *
+ * A clean, successful, EMPTY answer. Nothing failed. The RLS policy on
+ * `tenders` is `USING (auth.role() = 'authenticated')`, and auth.role() reads
+ * the `request.jwt.claims` GUC; with no claims set it returns NULL, the policy
+ * is false for every row, and RLS silently filters the entire table. The 22,691
+ * rows were there the whole time.
+ *
+ * This is the failure mode RLS always has: it removes rows, it does not raise.
+ * A missing identity therefore looks exactly like "no matching tenders".
+ *
+ * MECHANICS, and why each part matters:
+ *
+ *   SET LOCAL — not SET. Lambda reuses a container, and the pool holds the same
+ *     backend across invocations. A session-level SET ROLE would leak one
+ *     caller's identity into the next request on that connection. SET LOCAL is
+ *     scoped to the transaction and is unwound by COMMIT and by ROLLBACK alike.
+ *
+ *   explicit BEGIN/COMMIT — SET LOCAL outside a transaction block is a no-op
+ *     with only a warning, so the transaction is what makes it take effect.
+ *
+ *   SET ROLE authenticated — bidintel_api is NOINHERIT, so it holds the
+ *     `authenticated` privileges only while it has explicitly assumed the role.
+ *     This mirrors exactly what PostgREST does with the same token.
+ *
+ *   ROLLBACK in the catch — returning a connection to the pool mid-transaction
+ *     would leave the next caller inside a failed transaction block.
+ */
+async function withIdentity<T>(claims: JwtClaims, fn: (c: any) => Promise<T>): Promise<T> {
   const db = await getPool();
-  const { rows } = await db.query(SQL, [
-    toVectorLiteral(p.query_embedding), p.query_text, p.match_count, p.since_ts,
-    p.cpv_prefix, p.expansion_terms, p.cpv_prefixes,
-    p.w_keyword, p.w_cpv, p.w_semantic,
-    p.core_terms, p.context_terms, p.active_only, p.intent_domain,
-  ]);
-  return rows;
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SET LOCAL ROLE authenticated");
+    // Parameterised: the claims are attacker-influenced (they come from a token
+    // whose custom attributes a user may be able to affect) and must never be
+    // interpolated into SQL text.
+    await client.query("SELECT set_config('request.jwt.claims', $1, true)", [JSON.stringify(claims)]);
+    const out = await fn(client);
+    await client.query("COMMIT");
+    return out;
+  } catch (e) {
+    try { await client.query("ROLLBACK"); } catch { /* connection already gone */ }
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+export async function searchTendersHybrid(p: HybridSearchParams, claims: JwtClaims): Promise<any[]> {
+  return withIdentity(claims, async (client) => {
+    const { rows } = await client.query(SQL, [
+      toVectorLiteral(p.query_embedding), p.query_text, p.match_count, p.since_ts,
+      p.cpv_prefix, p.expansion_terms, p.cpv_prefixes,
+      p.w_keyword, p.w_cpv, p.w_semantic,
+      p.core_terms, p.context_terms, p.active_only, p.intent_domain,
+    ]);
+    return rows;
+  });
 }
 
 export async function closePool(): Promise<void> {

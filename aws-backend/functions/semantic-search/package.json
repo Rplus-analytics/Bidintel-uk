@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "package": "npm run build && cd dist && zip -qr ../semantic-search.zip ."
+    "package": "../../scripts/build-lambda.sh semantic-search"
   },
   "engines": {
     "node": ">=20"

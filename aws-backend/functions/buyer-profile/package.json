@@ -2,17 +2,22 @@
   "name": "@bidintel-aws/buyer-profile",
   "version": "0.1.0",
   "private": true,
-  "description": "AI-generated buyer profile and org chart — Lambda port",
+  "description": "AI-generated buyer profile and org chart \u2014 Lambda port",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "package": "npm run build && cd dist && zip -qr ../buyer-profile.zip ."
+    "package": "../../scripts/build-lambda.sh buyer-profile"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.145",
     "@types/node": "^22.16.5",
     "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.700.0"
   }
 }

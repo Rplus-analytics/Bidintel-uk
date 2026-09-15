@@ -42,3 +42,24 @@ bidintel-export*/
 supabase-export*/
 *.pgdump
 *.dump
+
+# Terraform working directories and local state.
+#
+# .terraform/ holds provider binaries — the AWS provider alone is 760 MB, well
+# over GitHub's 100 MB per-file limit, which is how this was noticed.
+#
+# *.tfplan is a saved binary plan. It is a point-in-time snapshot of intended
+# changes that can contain resource attributes marked sensitive, and it is
+# meaningless to anyone else's working directory.
+#
+# terraform.tfstate* — real state lives in S3 (bidintel-tfstate-008041477140).
+# The only local state files are leftovers from phase 1's bootstrap, before the
+# backend existed, and state routinely contains secrets in plaintext.
+#
+# .terraform.lock.hcl is deliberately NOT ignored: provider version pinning
+# belongs in version control.
+.terraform/
+*.tfplan
+terraform.tfstate
+terraform.tfstate.*
+terraform.tfstate.backup

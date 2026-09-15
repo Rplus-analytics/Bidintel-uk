@@ -1,13 +1,14 @@
-// Generates a buyer profile (description + org chart with LinkedIn links) using Lovable AI Gateway.
+// Generates a buyer profile (description + org chart with LinkedIn links) using OpenAI.
 //
 // Ported from supabase/functions/buyer-profile (Deno). The tool schema, model,
 // system prompt, response parsing and status-code mapping are unchanged.
 //
 // This is the only function in this batch with NO database dependency — it needs
-// nothing but LOVABLE_API_KEY, which is why the migration report schedules it as
-// the first function to introduce Secrets Manager.
+// nothing but an AI key, which is why the migration report schedules it as the
+// first function to introduce Secrets Manager.
 
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from "aws-lambda";
+import { ensureSecretEnv } from "../_shared/secret-env";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -67,6 +68,9 @@ export const handler = async (
     // tool-calling contract the Gemini call used, so the request/response shape
     // below is unchanged. Do not swap the model without re-checking that the
     // `return_buyer_profile` tool schema is still honoured.
+    // Populated from Secrets Manager on cold start when Terraform supplied only
+    // an ARN, so the key never appears in the function's configuration.
+    await ensureSecretEnv("OPENAI_API_KEY", "OPENAI_SECRET_ARN");
     const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
     if (!OPENAI_API_KEY) {
       return {
