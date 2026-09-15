@@ -1,6 +1,6 @@
 # BidIntel — AWS Deployment Status
 
-**Updated:** 2026-09-15 · **Branch:** `aws-migration` · **Account:** `008041477140` · **Region:** `eu-north-1`
+**Updated:** 2026-09-15 (embeddings complete) · **Branch:** `aws-migration` · **Account:** `008041477140` · **Region:** `eu-north-1`
 
 Handoff document. Another engineer should be able to pick the work up from here.
 Companion docs: [`DEPLOYMENT-PLAN.md`](DEPLOYMENT-PLAN.md) · [`BIDINTEL-STATUS.md`](BIDINTEL-STATUS.md) · [`RESTORE-LOVABLE-EXPORT.md`](RESTORE-LOVABLE-EXPORT.md) · [`../aws-backend/README.md`](../aws-backend/README.md)
@@ -84,8 +84,22 @@ and 16,333 distinct `(source, external_id)` — no duplicates**, unlike the July
 resets were a no-op: all 31 primary keys are `uuid` with `gen_random_uuid()` defaults and there are
 zero identity/serial columns.
 
-**Embeddings: 22,088 of 22,691 tenders carry a 1536-dim vector.** Status breakdown:
-`completed` 22,088 · `processing` **602** · `failed` 1.
+**Embeddings: 22,691 of 22,691 tenders — 100% coverage.** The export arrived with 22,088 already
+embedded; the remaining 603 (602 left `processing` by Lovable's interrupted run, plus 1 `failed`)
+were reset to `pending` and embedded on 2026-09-15 in 14 manual invocations of
+`embed-tenders-batch`, zero failures. All vectors 1536-dim and served by the HNSW index — top-10
+nearest neighbour in 3.3 ms.
+
+`embed-tenders-batch` was repointed from the Lovable AI Gateway to **OpenAI directly**
+(`text-embedding-3-small`, same model the gateway proxied, so vectors stay comparable with the
+22,088 already stored). Its `db.ts` is implemented: `pg`, module-scope pool at `max: 1`, and an
+atomic `FOR UPDATE SKIP LOCKED` claim replacing the original's non-atomic SELECT-then-UPDATE, which
+could make two overlapping runs pay twice for the same vectors.
+
+> **TEMPORARY — must be fixed in step 4.** That run used the **RDS master credentials**, because the
+> least-privilege roles did not exist yet. Every worker must be switched to `bidintel_app` with
+> least-privilege grants and re-verified with one invocation. **No deployed Lambda may hold master
+> credentials at cutover.**
 
 `authenticated`, `anon`, `bidintel_app` and `postgres` all have `rolbypassrls = false`.
 
@@ -167,10 +181,16 @@ committed file.
 
 | Secret | Contents | Loaded? |
 |---|---|---|
-| `bidintel/openai` | `OPENAI_API_KEY` | **no — handover task** |
+| `bidintel/openai` | `OPENAI_API_KEY` | **yes** — verified 2026-09-15 (HTTP 200, `text-embedding-3-small`, 1536 dims) |
 | `bidintel/ai-gateway` | Lovable gateway key (legacy, may not be needed) | no |
 | `bidintel/resend` | Email keys for `daily-search-alerts` (deferred) | no |
-| `bidintel/app-db` | PostgREST authenticator role: `PGUSER`, `PGPASSWORD` (40 random alphanumeric chars, generated and stored without ever being displayed), `PGHOST`, `PGPORT`, `PGDATABASE` | **yes** |
+| `bidintel/app-db` | **PostgREST only** — `bidintel_authenticator` (`NOINHERIT`, granted `anon` and `authenticated`, no direct table privileges) | yes |
+| `bidintel/worker-db` | **Lambdas only** — `bidintel_app` login with the table privileges the workers need | in progress |
+
+Credentials are deliberately **split**: PostgREST's role can only reach data by switching into
+`anon`/`authenticated`, so RLS always applies to it; the workers' role has direct table privileges
+but is never reachable from the web tier. Each Lambda execution role gets
+`secretsmanager:GetSecretValue` scoped to **only** the secret it needs.
 | `rds!db-…` (AWS-managed) | RDS master password | managed by AWS |
 
 Terraform creates the secret *containers* but never their values — a `secret_version` resource would
@@ -218,8 +238,8 @@ and non-secret values only.
 
 | Risk | Detail |
 |---|---|
-| **Semantic search needs the OpenAI key** | `semantic-search` embeds each query at request time. Without the key it degrades to keyword + CPV ranking, which it handles gracefully. **603 tenders still need embedding** (602 `processing` + 1 `failed`). |
-| **602 tenders stuck in `processing`** | Left mid-flight by Lovable's interrupted `embed-tenders-batch` run. `embed-tenders-batch` only claims rows with `embedding_status = 'pending'`, so **these will never be picked up until they are reset** — see the handover task. |
+| **Semantic search needs the OpenAI key at request time** | `semantic-search` embeds each query per request. The key is loaded in `bidintel/openai` and verified (HTTP 200, 1536 dims). Corpus embedding is complete, so this affects query embedding only; without the key it degrades to keyword + CPV ranking. |
+| **Workers still on master credentials** | `embed-tenders-batch` ran with the RDS master user as a one-off. Step 4 switches all workers to `bidintel_app`. Until then, do not deploy any Lambda with master credentials. |
 | **Operator IP churn** | The RDS security group allows a single `/32`, and the operator's ISP address changed twice in three days, breaking access mid-task each time. Tracked in the pending list. |
 | **`bidintel-1` is publicly accessible** | Security group restricts to one office IP plus the Lambda SG. A private-subnet rebuild is deferred. |
 | **`bidintel-deploy` has AdministratorAccess** | Far more than needed. Deferred. |
@@ -233,37 +253,12 @@ and non-secret values only.
 
 ## Handover tasks — do next
 
-**1. Load the OpenAI key.** First set a monthly spending limit in OpenAI's billing settings. Semantic
-search will not work in testing without this. Run in a zsh Terminal window, **not** inside Claude
-Code, using your own AWS profile:
+**The OpenAI key is loaded and the embedding backfill is complete** — that task is closed.
 
-```zsh
-umask 077
-read -rs "K?OpenAI key: " && printf '{"OPENAI_API_KEY":"%s"}' "$K" > /tmp/.oai && unset K && echo
-aws secretsmanager put-secret-value --secret-id bidintel/openai --secret-string file:///tmp/.oai \
-  --region eu-north-1 --profile <your-profile>
-rm -P /tmp/.oai
-```
-
-**Before running `embed-tenders-batch`, reset the interrupted rows.** 602 tenders are stuck in
-`embedding_status = 'processing'` from Lovable's interrupted run, and the worker only claims
-`pending` rows — without this they are never picked up:
-
-```sql
-UPDATE public.tenders
-   SET embedding_status = 'pending'
- WHERE embedding_status = 'processing'
-   AND embedding IS NULL;          -- 602 rows expected
-```
-
-Then enable `buyer-profile`, run `embed-tenders-batch` manually for the 603 unembedded tenders, and
-test semantic search locally.
-
-**2. Continue the build** in this order: load data into `bidintel` → `db.ts` → deploy Lambdas and
-API Gateway → PostgREST on Fargate and ALB (only after the grant/role lock-down passes) → create the
-two internal test users → frontend rewrite on `aws-migration` → local end-to-end test.
-
----
+**Continue the build** in this order: finish `db.ts` for `semantic-search` and the ingestion workers
+→ split the database credentials and deploy the 5 launch Lambdas behind API Gateway → PostgREST on
+Fargate and ALB (only after the grant/role lock-down) → create the two internal test users →
+frontend rewrite on `aws-migration` → local end-to-end test.
 
 ## Pending — deferred until after testing
 
@@ -275,7 +270,7 @@ two internal test users → frontend rewrite on `aws-migration` → local end-to
 - Full database security review: RLS behaviour per role and SECURITY DEFINER audit (basic grants and function lock-down are done before PostgREST goes live)
 - Vercel Pro decision (owner: not the current engineer). Required because Hobby cannot deploy private GitHub organization repos, and Hobby terms are non-commercial. Check which repo production deploys from (Vercel → Settings → Git); if it is the organization repo, merging to `main` at cutover will be blocked without Pro.
 - Cutover: pause Lovable writes, re-export anything changed since 11 Sep, load fresh `backfill_state`, enable EventBridge schedules, merge `aws-migration` to `main`, send users password reset emails
-- Move database access behind SSM Session Manager so no security-group IP rule is needed. The
-  operator's ISP address is dynamic and changed twice in three days, breaking access mid-task each
-  time; the current rule is a single `/32` that needs re-adding whenever it moves
+- ~~Move database access behind SSM Session Manager~~ — **in progress, no longer deferred.** The
+  operator's ISP address changed twice in three days, breaking tasks mid-run. The `/32` rule stays
+  until SSM port-forwarding is confirmed working, then is removed
 - Delete `~/bidintel-export/` from the local Mac once the load is confirmed

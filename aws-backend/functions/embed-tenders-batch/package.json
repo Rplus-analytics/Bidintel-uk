@@ -2,17 +2,24 @@
   "name": "@bidintel-aws/embed-tenders-batch",
   "version": "0.1.0",
   "private": true,
-  "description": "Batch tender embedding worker — Lambda port (DB stubbed)",
+  "description": "Batch tender embedding worker \u2014 Lambda port (DB stubbed)",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "package": "npm run build && cd dist && zip -qr ../embed-tenders-batch.zip ."
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.145",
     "@types/node": "^22.16.5",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "@types/pg": "^8.11.10"
+  },
+  "dependencies": {
+    "pg": "^8.13.1",
+    "@aws-sdk/client-secrets-manager": "^3.700.0"
   }
 }

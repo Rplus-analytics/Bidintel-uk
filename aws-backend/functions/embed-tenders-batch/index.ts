@@ -34,20 +34,23 @@ const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
 
 const BATCH_SIZE = 50;
 const MAX_INPUT_CHARS = 6000;
-const EMBED_MODEL = "openai/text-embedding-3-small"; // 1536 dims, matches tenders.embedding
+const EMBED_MODEL = "text-embedding-3-small"; // 1536 dims, matches tenders.embedding
 
 async function embed(input: string): Promise<number[]> {
-  // TODO(secrets): move to Secrets Manager — see buyer-profile/index.ts.
-  const key = process.env.LOVABLE_API_KEY;
-  if (!key) throw new Error("LOVABLE_API_KEY missing");
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
+  // Launch provider is OpenAI directly, not the Lovable AI Gateway — Lovable is
+  // the platform being migrated away from. text-embedding-3-small is the same
+  // model the gateway proxied, so vectors stay comparable with the 22,088
+  // already in the column and no re-embedding is needed.
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) throw new Error("OPENAI_API_KEY missing");
+  const res = await fetch("https://api.openai.com/v1/embeddings", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({ model: EMBED_MODEL, input }),
   });
   if (!res.ok) {
     const body = await res.text();
-    const err: any = new Error(`Embed gateway ${res.status}: ${body.slice(0, 300)}`);
+    const err: any = new Error(`OpenAI embeddings ${res.status}: ${body.slice(0, 300)}`);
     err.status = res.status;
     throw err;
   }
