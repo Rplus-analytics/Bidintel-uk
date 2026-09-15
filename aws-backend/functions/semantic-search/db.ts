@@ -1,28 +1,15 @@
 // ============================================================================
-// DATABASE STUB — not yet wired to RDS
+// Database layer — semantic-search
 // ============================================================================
 //
-// See embed-tenders-batch/db.ts for the full TODO(rds) checklist. Two extra
-// prerequisites apply to THIS function specifically, and neither is optional:
+// Connects as bidintel_api (LOGIN, NOBYPASSRLS) once that role exists, so the
+// user-facing path is always subject to RLS. Until then it accepts whatever
+// DATABASE_URL / DATABASE_SECRET_ARN provides.
 //
-//   * pgvector and pg_trgm must be installed on the RDS instance, and the HNSW
-//     index `tenders_embedding_hnsw_idx` must exist on tenders.embedding.
-//     Without the index the query still returns correct rows — it just does a
-//     sequential scan over ~20k vectors and gets slow enough to time out.
-//   * `search_tenders_hybrid` must be ported with the EXACT 14-argument
-//     signature. It exists in four overloads on the source database (5, 10, 13
-//     and 14 arg). Postgres resolves overloads by argument list, so porting the
-//     wrong one produces "function does not exist" at best and silently
-//     different ranking at worst.
-//
-// Get the authoritative definition from the source database rather than from
-// any migration file:
-//
-//   SELECT pg_get_functiondef(oid)
-//     FROM pg_proc
-//    WHERE proname = 'search_tenders_hybrid';
-//
-// Nothing here has been executed.
+// Pool at module scope, max: 1 — Lambda scales by process, so a larger pool
+// multiplied by concurrency exhausts max_connections on a small instance.
+
+import { Pool } from "pg";
 
 export interface HybridSearchParams {
   query_embedding: number[] | null;
@@ -42,73 +29,87 @@ export interface HybridSearchParams {
 }
 
 export class DbNotConfiguredError extends Error {
-  constructor(operation: string) {
-    super(
-      `Database not configured: ${operation} requires RDS. ` +
-      `This Lambda is a scaffold — see the TODO(rds) block in db.ts.`,
-    );
+  constructor(op: string) {
+    super(`Database not configured: ${op}. Set DATABASE_URL or DATABASE_SECRET_ARN.`);
     this.name = "DbNotConfiguredError";
   }
 }
 
 export function isDbConfigured(): boolean {
-  return Boolean(process.env.DATABASE_SECRET_ARN || process.env.DATABASE_URL);
+  return Boolean(process.env.DATABASE_URL || process.env.DATABASE_SECRET_ARN);
 }
 
-/**
- * The 14-argument search_tenders_hybrid call.
- *
- * NAMED argument notation (`arg => $n`) is used deliberately rather than
- * positional. Positional binding would silently pick a different overload if
- * the argument order on RDS differs from what this file assumes, and the
- * failure mode would be wrong search results rather than an error. Named
- * notation fails loudly instead.
- *
- * $1 may be NULL: when the AI Gateway embed call fails, the original still runs
- * the RPC with a null embedding and degrades to keyword + CPV ranking. Preserve
- * that — it is the function's fallback path, not an error case.
- */
-export const SQL_SEARCH_TENDERS_HYBRID = `
-  SELECT *
-    FROM search_tenders_hybrid(
-      query_embedding => $1::vector,
-      query_text      => $2::text,
-      match_count     => $3::int,
-      since_ts        => $4::timestamptz,
-      cpv_prefix      => $5::text,
-      expansion_terms => $6::text[],
-      cpv_prefixes    => $7::text[],
-      w_keyword       => $8::double precision,
-      w_cpv           => $9::double precision,
-      w_semantic      => $10::double precision,
-      core_terms      => $11::text[],
-      context_terms   => $12::text[],
-      active_only     => $13::boolean,
-      intent_domain   => $14::text
-    )
-`;
+let pool: Pool | null = null;
 
-/** pgvector wants '[0.1,0.2,...]'; null stays null so the keyword-only path works. */
+async function getPool(): Promise<Pool> {
+  if (pool) return pool;
+  let conn = process.env.DATABASE_URL;
+  if (!conn && process.env.DATABASE_SECRET_ARN) {
+    const { SecretsManagerClient, GetSecretValueCommand } =
+      await import("@aws-sdk/client-secrets-manager");
+    const sm = new SecretsManagerClient({});
+    const r = await sm.send(new GetSecretValueCommand({ SecretId: process.env.DATABASE_SECRET_ARN }));
+    const s = JSON.parse(r.SecretString || "{}");
+    conn = `postgresql://${encodeURIComponent(s.PGUSER)}:${encodeURIComponent(s.PGPASSWORD)}@${s.PGHOST}:${s.PGPORT ?? 5432}/${s.PGDATABASE}`;
+  }
+  if (!conn) throw new DbNotConfiguredError("getPool");
+  pool = new Pool({
+    connectionString: conn,
+    max: 1,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 15_000,
+    ssl: { rejectUnauthorized: false },
+  });
+  return pool;
+}
+
+/** pgvector literal; null stays null so the keyword-only fallback still works. */
 export function toVectorLiteral(vec: number[] | null): string | null {
   return vec === null ? null : `[${vec.join(",")}]`;
 }
 
 /**
- * Runs SQL_SEARCH_TENDERS_HYBRID and returns the rows.
+ * The 14-argument search_tenders_hybrid call.
  *
- * TODO(rds): implement as —
- *   const { rows } = await pool.query(SQL_SEARCH_TENDERS_HYBRID, [
- *     toVectorLiteral(p.query_embedding), p.query_text, p.match_count,
- *     p.since_ts, p.cpv_prefix, p.expansion_terms, p.cpv_prefixes,
- *     p.w_keyword, p.w_cpv, p.w_semantic, p.core_terms, p.context_terms,
- *     p.active_only, p.intent_domain,
- *   ]);
- *   return rows;
+ * NAMED argument notation, not positional. The live database carries FOUR
+ * overloads (5, 10, 13 and 14 arg); positional binding could silently resolve
+ * to a different one and return plausible-but-wrong rankings. Named notation
+ * fails loudly instead.
  *
- * Note node-postgres maps a JS string[] onto text[] natively, so
- * expansion_terms / cpv_prefixes / core_terms / context_terms pass straight
- * through with no serialisation.
+ * $1 may be NULL: when the OpenAI embed call fails, the caller still runs the
+ * RPC with a null vector and degrades to keyword + CPV ranking. That is the
+ * designed fallback, not an error path.
  */
-export async function searchTendersHybrid(_params: HybridSearchParams): Promise<any[]> {
-  throw new DbNotConfiguredError("searchTendersHybrid");
+const SQL = `
+  SELECT * FROM search_tenders_hybrid(
+    query_embedding => $1::vector,
+    query_text      => $2::text,
+    match_count     => $3::int,
+    since_ts        => $4::timestamptz,
+    cpv_prefix      => $5::text,
+    expansion_terms => $6::text[],
+    cpv_prefixes    => $7::text[],
+    w_keyword       => $8::double precision,
+    w_cpv           => $9::double precision,
+    w_semantic      => $10::double precision,
+    core_terms      => $11::text[],
+    context_terms   => $12::text[],
+    active_only     => $13::boolean,
+    intent_domain   => $14::text
+  )
+`;
+
+export async function searchTendersHybrid(p: HybridSearchParams): Promise<any[]> {
+  const db = await getPool();
+  const { rows } = await db.query(SQL, [
+    toVectorLiteral(p.query_embedding), p.query_text, p.match_count, p.since_ts,
+    p.cpv_prefix, p.expansion_terms, p.cpv_prefixes,
+    p.w_keyword, p.w_cpv, p.w_semantic,
+    p.core_terms, p.context_terms, p.active_only, p.intent_domain,
+  ]);
+  return rows;
+}
+
+export async function closePool(): Promise<void> {
+  if (pool) { await pool.end(); pool = null; }
 }

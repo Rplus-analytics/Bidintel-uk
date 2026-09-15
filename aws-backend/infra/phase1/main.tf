@@ -101,6 +101,7 @@ locals {
     "ai-gateway" = "AI provider credentials. Currently LOVABLE_API_KEY; see the open decision in docs/DEPLOYMENT-PLAN.md about replacing the Lovable gateway."
     "resend"     = "RESEND_API_KEY and ALERTS_FROM_ADDRESS for daily-search-alerts."
     "app-db"     = "Application (non-owner, non-BYPASSRLS) database role for the Lambda functions. NOT the RDS master user."
+    "worker-db"  = "bidintel_app — the LOGIN role the ingestion/embedding Lambdas use. Has direct table privileges on the data tables and BYPASSRLS (it writes rows for every organisation and is never reachable from the web tier). Deliberately separate from bidintel/app-db so a compromised web tier cannot obtain worker privileges."
     "openai"     = "OPENAI_API_KEY. Launch AI provider: text-embedding-3-small for embeddings (vector-identical to what Lovable's gateway produced, so no re-embedding penalty) and a chat model with tool calling for buyer-profile. Bedrock is post-launch."
   }
 }

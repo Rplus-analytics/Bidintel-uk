@@ -28,7 +28,7 @@ const corsHeaders = {
 
 const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
 
-const EMBED_MODEL = "openai/text-embedding-3-small";
+const EMBED_MODEL = "text-embedding-3-small";
 
 // --- Procurement domain taxonomy --------------------------------------------
 // Each domain owns its keyword expansions and CPV prefixes. Cross-domain
@@ -319,15 +319,18 @@ function buildExpansion(q: string) {
 }
 
 async function embed(input: string): Promise<number[]> {
-  // TODO(secrets): move to Secrets Manager — see buyer-profile/index.ts.
-  const key = process.env.LOVABLE_API_KEY;
-  if (!key) throw new Error("LOVABLE_API_KEY missing");
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
+  // OpenAI directly, not the Lovable AI Gateway. Must stay the SAME model that
+  // produced the stored vectors (text-embedding-3-small) — a different model
+  // puts queries in a different vector space and every similarity score becomes
+  // noise, silently, with no error.
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) throw new Error("OPENAI_API_KEY missing");
+  const res = await fetch("https://api.openai.com/v1/embeddings", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({ model: EMBED_MODEL, input }),
   });
-  if (!res.ok) throw new Error(`Embed gateway ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  if (!res.ok) throw new Error(`OpenAI embeddings ${res.status}: ${(await res.text()).slice(0, 200)}`);
   const json: any = await res.json();
   return json?.data?.[0]?.embedding as number[];
 }

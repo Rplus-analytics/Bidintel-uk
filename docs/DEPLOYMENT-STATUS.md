@@ -119,7 +119,9 @@ could make two overlapping runs pay twice for the same vectors.
 | Item | Status |
 |---|---|
 | Data load into `bidintel` | **DONE 2026-09-15** — 19/19 tables, counts match `row_counts.csv` exactly, zero FK orphans, zero duplicate awards |
-| `db.ts` (database layer for all Lambdas) | not started — critical path |
+| `db.ts` — `embed-tenders-batch` | **DONE** — `pg`, pool `max: 1`, atomic `FOR UPDATE SKIP LOCKED` claim |
+| `db.ts` — `semantic-search` | **DONE** — 14-arg RPC via named arguments, OpenAI query embedding. Verified end to end: real queries return correctly ranked results |
+| `db.ts` — ingestion/backfill workers | in progress |
 | Lambda deploys + API Gateway | not started |
 | PostgREST on Fargate + ALB | not started (Terraform not yet written) |
 | Cognito test users | not created |
@@ -210,6 +212,20 @@ rm -P /tmp/.sec
 
 ---
 
+## Operator database access
+
+The RDS security group permits one operator `/32`. When the ISP address changes, connections time
+out; re-point it with:
+
+```bash
+./scripts/allow-my-ip.sh                # defaults to the bidintel-deploy profile
+./scripts/allow-my-ip.sh my-profile     # or name one
+```
+
+It revokes whatever operator CIDR is currently allowed and adds the current IP in a single call, so
+rules never accumulate and only one operator address is ever permitted. Security-group *references*
+(the Lambda SG rule) are left untouched.
+
 ## How to test locally
 
 Vercel previews are unavailable (see decisions). Testing is local, on `http://localhost:8080`, which
@@ -239,8 +255,9 @@ and non-secret values only.
 | Risk | Detail |
 |---|---|
 | **Semantic search needs the OpenAI key at request time** | `semantic-search` embeds each query per request. The key is loaded in `bidintel/openai` and verified (HTTP 200, 1536 dims). Corpus embedding is complete, so this affects query embedding only; without the key it degrades to keyword + CPV ranking. |
+| **`bidintel_app` has BYPASSRLS** | Accepted for ingestion/backfill/embedding workers, which write rows for every organisation and would otherwise be blocked by the data tables' RLS policies. **It must never back a user-facing function.** Step 3 introduces a separate `bidintel_api` role (LOGIN, **NOBYPASSRLS**) for `semantic-search` and `buyer-profile`, so the user-facing path reads data tables normally and reaches user tables only through RLS. Until that role exists, no user-facing Lambda may be deployed. |
 | **Workers still on master credentials** | `embed-tenders-batch` ran with the RDS master user as a one-off. Step 4 switches all workers to `bidintel_app`. Until then, do not deploy any Lambda with master credentials. |
-| **Operator IP churn** | The RDS security group allows a single `/32`, and the operator's ISP address changed twice in three days, breaking access mid-task each time. Tracked in the pending list. |
+| **Operator IP churn** | The RDS security group allows a single `/32` and the operator's ISP address is dynamic. Mitigated by `scripts/allow-my-ip.sh`, which revokes the previous operator rule and adds the current IP in one call. Run it when a connection times out. |
 | **`bidintel-1` is publicly accessible** | Security group restricts to one office IP plus the Lambda SG. A private-subnet rebuild is deferred. |
 | **`bidintel-deploy` has AdministratorAccess** | Far more than needed. Deferred. |
 | **Database master password has been used by tooling** | Rotate after launch. |
@@ -270,7 +287,9 @@ frontend rewrite on `aws-migration` → local end-to-end test.
 - Full database security review: RLS behaviour per role and SECURITY DEFINER audit (basic grants and function lock-down are done before PostgREST goes live)
 - Vercel Pro decision (owner: not the current engineer). Required because Hobby cannot deploy private GitHub organization repos, and Hobby terms are non-commercial. Check which repo production deploys from (Vercel → Settings → Git); if it is the organization repo, merging to `main` at cutover will be blocked without Pro.
 - Cutover: pause Lovable writes, re-export anything changed since 11 Sep, load fresh `backfill_state`, enable EventBridge schedules, merge `aws-migration` to `main`, send users password reset emails
-- ~~Move database access behind SSM Session Manager~~ — **in progress, no longer deferred.** The
-  operator's ISP address changed twice in three days, breaking tasks mid-run. The `/32` rule stays
-  until SSM port-forwarding is confirmed working, then is removed
+- **ECS Exec for operator database access** (long-term option). An SSM bastion was planned, costed
+  and written, then dropped: ~$3.70/month plus a local plugin install plus a port-forward before
+  every connection was not worth it against one security-group rule. `scripts/allow-my-ip.sh`
+  handles the IP churn instead. ECS Exec remains the cleaner long-term answer because it costs
+  nothing at rest
 - Delete `~/bidintel-export/` from the local Mac once the load is confirmed
