@@ -46,3 +46,26 @@ variable "log_retention_days" {
   type    = number
   default = 14
 }
+
+variable "api_domain" {
+  description = <<-EOT
+    The hostname the app talks to. DELIBERATELY NOT bidintel.rplusai.co.uk —
+    that is the live Lovable site and repointing it is a cutover step, not a
+    prerequisite for testing.
+  EOT
+  type        = string
+  default     = "api.bidintel.rplusai.co.uk"
+}
+
+variable "enable_https" {
+  description = <<-EOT
+    Gates the 443 listener and the 80 -> 443 redirect.
+
+    Two-stage on purpose. ACM will not issue until the validation CNAME exists
+    in Cloudflare, and a listener referencing an unissued certificate fails the
+    apply. So: apply once with this false to create the certificate and emit the
+    record, add the record, then apply again with it true.
+  EOT
+  type        = bool
+  default     = false
+}

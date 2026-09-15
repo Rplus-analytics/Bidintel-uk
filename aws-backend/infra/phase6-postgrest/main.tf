@@ -132,17 +132,6 @@ resource "aws_lb_target_group" "postgrest" {
   deregistration_delay = 15
 }
 
-resource "aws_lb_listener" "http" {
-  load_balancer_arn = aws_lb.main.arn
-  port              = 80
-  protocol          = "HTTP"
-
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.postgrest.arn
-  }
-}
-
 # ---------------------------------------------------------------------------
 # IAM
 # ---------------------------------------------------------------------------
@@ -331,4 +320,95 @@ resource "aws_ecs_service" "postgrest" {
   deployment_maximum_percent         = 200
 
   depends_on = [aws_lb_listener.http]
+}
+
+# ---------------------------------------------------------------------------
+# TLS certificate
+# ---------------------------------------------------------------------------
+#
+# MUST be in eu-north-1: an ALB can only use a certificate from its own region.
+# (CloudFront is the exception that requires us-east-1; this is not CloudFront.)
+#
+# DNS validation rather than email: it is the only method that can be automated,
+# and it re-validates silently at renewal. Email validation would need a human
+# to click a link every 13 months or the listener breaks.
+
+resource "aws_acm_certificate" "api" {
+  domain_name       = var.api_domain
+  validation_method = "DNS"
+
+  lifecycle {
+    # ACM cannot change a certificate's domain in place. Without this, any such
+    # change destroys the certificate the live listener is using before the
+    # replacement exists.
+    create_before_destroy = true
+  }
+
+  tags = { Name = var.api_domain }
+}
+
+# NOT aws_acm_certificate_validation: that resource BLOCKS the apply until the
+# certificate is issued, and issuance depends on a human adding a record in
+# Cloudflare. It would hold a state lock for as long as that takes and then time
+# out. The two-stage var.enable_https flag does the same job without blocking.
+
+# ---------------------------------------------------------------------------
+# HTTPS listener
+# ---------------------------------------------------------------------------
+
+resource "aws_lb_listener" "https" {
+  count = var.enable_https ? 1 : 0
+
+  load_balancer_arn = aws_lb.main.arn
+  port              = 443
+  protocol          = "HTTPS"
+  certificate_arn   = aws_acm_certificate.api.arn
+
+  # TLS 1.2 minimum. The -TLS13- policies also negotiate 1.3 where the client
+  # supports it. Excludes the 1.0/1.1 suites entirely; nothing that needs to
+  # reach this is that old.
+  ssl_policy = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.postgrest.arn
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Port 80
+# ---------------------------------------------------------------------------
+#
+# Once 443 exists, 80 stops serving traffic and only redirects. HSTS is NOT set
+# here: this host is reached by XHR from the app rather than by typing it into a
+# browser, so a Strict-Transport-Security header would do nothing useful while
+# pinning the domain to HTTPS in every visitor's browser for its max-age — an
+# awkward thing to undo if the domain is ever reused.
+
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.main.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  dynamic "default_action" {
+    for_each = var.enable_https ? [] : [1]
+    content {
+      type             = "forward"
+      target_group_arn = aws_lb_target_group.postgrest.arn
+    }
+  }
+
+  dynamic "default_action" {
+    for_each = var.enable_https ? [1] : []
+    content {
+      type = "redirect"
+      redirect {
+        port     = "443"
+        protocol = "HTTPS"
+        # 301, not 302: this is permanent, and a permanent redirect is cached by
+        # the client so the plaintext round trip stops happening at all.
+        status_code = "HTTP_301"
+      }
+    }
+  }
 }

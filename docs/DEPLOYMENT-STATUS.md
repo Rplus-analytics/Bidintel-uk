@@ -231,6 +231,85 @@ or `.rpc()`.
 Each of these returns a clear named error rather than a 404, so a missing
 function is reported as itself instead of as "search failed".
 
+## HTTPS setup (Cloudflare DNS)
+
+`api.bidintel.rplusai.co.uk` — a NEW hostname. **`bidintel.rplusai.co.uk` is not
+touched**: that is the live Lovable site, and repointing it is a cutover step.
+
+### Step 1 — validate the certificate
+
+Add in Cloudflare, **DNS only (grey cloud)**:
+
+| Type | Name | Value |
+|---|---|---|
+| CNAME | `_8b1f82d1ea772c10115b5883cc6f4fcb.api.bidintel` | `_d9eee77267a928cefa68beaff901a805.wzccmgtwzk.acm-validations.aws` |
+
+**Why DNS-only is not optional here.** A proxied (orange cloud) record makes
+Cloudflare answer with its own anycast IPs instead of the CNAME target. ACM
+resolves the record and compares the value, finds Cloudflare's A records rather
+than the `acm-validations.aws` target, and the certificate never leaves
+`PENDING_VALIDATION`. Cloudflare will not proxy a `_`-prefixed record anyway, but
+set it explicitly rather than relying on that.
+
+Cloudflare appends the zone name, so enter the name **without** `.rplusai.co.uk`
+— pasting the fully-qualified name usually yields
+`…api.bidintel.rplusai.co.uk.rplusai.co.uk`. Cloudflare also strips a trailing
+dot; leave it off.
+
+ACM polls every few minutes. Verify with:
+
+```bash
+aws acm describe-certificate --profile bidintel-deploy --region eu-north-1 \
+  --certificate-arn "$(cd aws-backend/infra/phase6-postgrest && terraform output -raw acm_certificate_arn)" \
+  --query 'Certificate.Status'
+```
+
+Leave the validation record in place permanently — ACM re-checks it to renew
+automatically. Deleting it after issuance means the certificate silently fails to
+renew and the listener breaks in 13 months.
+
+### Step 2 — the endpoint record, and the listener
+
+| Type | Name | Value |
+|---|---|---|
+| CNAME | `api.bidintel` | `bidintel-postgrest-1007768748.eu-north-1.elb.amazonaws.com` |
+
+**DNS only (grey cloud) here too, and this one is a real decision, not a
+formality.** Proxying would work in the sense that requests arrive — but:
+
+- **It breaks the IP allowlist.** Traffic would reach the ALB from Cloudflare's
+  edge, so the security group would have to admit Cloudflare's published ranges
+  instead of named testers. That is a large, shared, public IP set: the
+  allowlist would stop meaning anything.
+- **It puts a third party in the token path.** Proxied means Cloudflare
+  terminates TLS, so every Cognito ID token is in plaintext at their edge. The
+  entire point of this exercise is to stop tokens crossing anything in the clear.
+- It buys nothing we need. Cloudflare's caching, WAF and DDoS protection are
+  aimed at public sites; this is an authenticated JSON API for seven people.
+
+DNS-only keeps the TLS session end-to-end between the browser and our ALB, with
+our own ACM certificate, and keeps the security group meaningful.
+
+Then:
+
+```bash
+cd aws-backend/infra/phase6-postgrest
+terraform apply -var enable_https=true     # adds 443, turns 80 into a redirect
+```
+
+The two-stage flag exists because a listener referencing an unissued certificate
+fails the apply, and issuance waits on a human editing DNS.
+
+### CORS
+
+Checked, not assumed: PostgREST **echoes** the browser's requested headers into
+`Access-Control-Allow-Headers`, so `content-type`, `prefer`, `range` and
+`accept-profile` are all allowed and writes and pagination work. Its default
+`Access-Control-Allow-Origin: *` is safe here precisely because it holds no
+ambient authority — no cookies, no session; every request must carry a bearer
+token the caller obtained from Cognito, and the API Gateway side is separately
+pinned to `http://localhost:8080`.
+
 ## Known interaction: excluded `write_attributes` vs `NEW_PASSWORD_REQUIRED`
 
 **Worth knowing before touching either side, because the two look unrelated and
