@@ -1,11 +1,38 @@
 # BidIntel — AWS Deployment Status
 
-**Updated:** 2026-09-15 (embeddings complete) · **Branch:** `aws-migration` · **Account:** `008041477140` · **Region:** `eu-north-1`
+**Updated:** 2026-09-15 (RLS verified; deploys in progress) · **Branch:** `aws-migration` · **Account:** `008041477140` · **Region:** `eu-north-1`
 
 Handoff document. Another engineer should be able to pick the work up from here.
 Companion docs: [`DEPLOYMENT-PLAN.md`](DEPLOYMENT-PLAN.md) · [`BIDINTEL-STATUS.md`](BIDINTEL-STATUS.md) · [`RESTORE-LOVABLE-EXPORT.md`](RESTORE-LOVABLE-EXPORT.md) · [`../aws-backend/README.md`](../aws-backend/README.md)
 
 > **No secrets, passwords or email addresses appear in this document, and none should be added.**
+
+---
+
+## ⏭️ EXACT NEXT STEP
+
+**Deploy the five launch Lambdas, then the HTTP API.** Nothing is half-applied; the last completed
+action was the grant lock-down and RLS proof below, plus the `buyer-profile` OpenAI repoint.
+
+In order:
+
+1. **Deploy Lambdas.** `semantic-search` + `buyer-profile` **in the VPC** (subnets
+   `subnet-0ff77108be79ccdd5`, `subnet-0a1094478008deedb`, SG `sg-054bd4a03c245e2e7`) with
+   `DATABASE_SECRET_ARN` → `bidintel/api-db` and `OPENAI_API_KEY` from `bidintel/openai`.
+   `contracts-finder`, `contracts-scotland`, `find-a-tender` **outside the VPC** — no DB, no NAT
+   cost, no ENI cold start. Each execution role gets `secretsmanager:GetSecretValue` scoped to only
+   the secret it needs.
+2. **HTTP API** with a Cognito JWT authorizer on every route (issuer
+   `https://cognito-idp.eu-north-1.amazonaws.com/eu-north-1_9LKk8RR6t`, audience
+   `4ua1vhje9gmm3kekuk6spvf1r`). CORS: `http://localhost:8080` and
+   `https://bidintel-drab.vercel.app` only.
+3. **PostgREST on Fargate + ALB** (plan first). HTTP only — see the HTTPS risk below. ALB security
+   group restricted to the test machines' IPs, never `0.0.0.0/0`.
+4. **Frontend rewrite** on `aws-migration`, then the two test users, then local end-to-end test.
+5. **Then the ingestion adapter** — see "Required before cutover".
+
+**Nothing is half-finished.** All Terraform state is in S3 and `terraform plan` is clean on every
+applied stack.
 
 ---
 
@@ -121,14 +148,27 @@ could make two overlapping runs pay twice for the same vectors.
 | Data load into `bidintel` | **DONE 2026-09-15** — 19/19 tables, counts match `row_counts.csv` exactly, zero FK orphans, zero duplicate awards |
 | `db.ts` — `embed-tenders-batch` | **DONE** — `pg`, pool `max: 1`, atomic `FOR UPDATE SKIP LOCKED` claim |
 | `db.ts` — `semantic-search` | **DONE** — 14-arg RPC via named arguments, OpenAI query embedding. Verified end to end: real queries return correctly ranked results |
-| `db.ts` — ingestion/backfill workers | in progress |
-| Lambda deploys + API Gateway | not started |
+| `db.ts` — ingestion/backfill workers | **REQUIRED BEFORE CUTOVER, not optional** — see below |
+| `buyer-profile` OpenAI repoint | **DONE** — `gpt-4o-mini`, same tool-calling contract, verified live (8-person org chart) |
+| Lambda deploys + API Gateway | not started — **next** |
 | PostgREST on Fargate + ALB | not started (Terraform not yet written) |
 | Cognito test users | not created |
 | Frontend Cognito/PostgREST rewrite | not started |
 | HNSW vector index | **DONE 2026-09-15** — `tenders_embedding_hnsw_idx`, 159 MB. Column altered to `vector(1536)` first, since HNSW cannot index an unconstrained `vector`. Planner confirmed using it: top-10 nearest neighbour in 5.3 ms |
 
 ---
+
+## Required before cutover: the ingestion adapter
+
+The ten ingestion and backfill workers all reach the database through
+`aws-backend/functions/_shared/db.ts`, which is still a PostgREST-shaped stub that throws. Until it
+is implemented:
+
+**the AWS database goes stale the moment Lovable stops writing.** No new tenders, no new notices, no
+new awards. The loaded data is a point-in-time copy from 11 Sep.
+
+It is deferred only because the login/search path was prioritised for testing. It is **not**
+optional, and it is the last thing standing between a working test stack and a cutover-ready one.
 
 ## Decisions, and why
 
@@ -212,6 +252,50 @@ rm -P /tmp/.sec
 
 ---
 
+## Database security — verified 2026-09-15
+
+Three login roles, deliberately separated so a compromise of one tier cannot borrow another's
+privileges:
+
+| Role | Login | Inherit | BypassRLS | Used by |
+|---|---|---|---|---|
+| `bidintel_authenticator` | yes | **NOINHERIT** | no | PostgREST only. Zero direct table grants |
+| `bidintel_api` | yes | **NOINHERIT** | no | `semantic-search`, `buyer-profile` |
+| `bidintel_app` | yes | yes | **YES** | Ingestion / backfill / embedding workers only |
+
+`bidintel_api` and `bidintel_authenticator` are **members of `authenticated` and `anon` but inherit
+nothing passively** — they must explicitly `SET ROLE`, exactly as PostgREST does. Their own direct
+grants would otherwise bypass the `TO authenticated` policies entirely.
+
+### Three findings from the lock-down
+
+1. **`authenticated` had no `USAGE` on the `auth` schema.** Every RLS policy calls `auth.uid()`, so
+   every policy errored with `permission denied for schema auth` rather than filtering. Had
+   PostgREST gone live first, every query would have failed — loudly, which is the safe direction,
+   but it would have looked like a broken deployment rather than a missing grant.
+2. **`EXECUTE` defaults to `PUBLIC`.** All 36 public functions, including the SECURITY DEFINER ones,
+   were callable by unauthenticated callers. Now `REVOKE`d from `PUBLIC` and `anon`, with only
+   `search_tenders_hybrid`, `current_org_id()` and `is_org_admin()` granted back to `authenticated`.
+3. **`anon` is revoked from every user table**, so the pre-login role cannot reach user data at all.
+
+Applied by [`aws-backend/schema/05-grants.sql`](../aws-backend/schema/05-grants.sql).
+
+### RLS proof
+
+Run as `bidintel_api` → `SET ROLE authenticated`, with `request.jwt.claims` set per identity:
+
+| Identity | `profiles` | `saved_bids` | `saved_searches` | `tenders` |
+|---|---:|---:|---:|---:|
+| user A (admin) | 6 | 3 | **1** | 22,691 |
+| user B (admin) | 6 | 3 | **0** | 22,691 |
+| **stranger** (unknown uuid) | **0** | **0** | **0** | 22,691 |
+| no claims at all | **0** | **0** | **0** | **0** |
+| *superuser, RLS bypassed* | *7* | *3* | *7* | *22,691* |
+
+A stranger sees **zero** user data, and user A sees a saved search user B does not — per-user
+isolation, not merely per-org. `tenders` stays visible because it is public-read by design, and
+drops to zero with no claims because `anon` is revoked from it.
+
 ## Operator database access
 
 The RDS security group permits one operator `/32`. When the ISP address changes, connections time
@@ -257,6 +341,7 @@ and non-secret values only.
 | **Semantic search needs the OpenAI key at request time** | `semantic-search` embeds each query per request. The key is loaded in `bidintel/openai` and verified (HTTP 200, 1536 dims). Corpus embedding is complete, so this affects query embedding only; without the key it degrades to keyword + CPV ranking. |
 | **`bidintel_app` has BYPASSRLS** | Accepted for ingestion/backfill/embedding workers, which write rows for every organisation and would otherwise be blocked by the data tables' RLS policies. **It must never back a user-facing function.** Step 3 introduces a separate `bidintel_api` role (LOGIN, **NOBYPASSRLS**) for `semantic-search` and `buyer-profile`, so the user-facing path reads data tables normally and reaches user tables only through RLS. Until that role exists, no user-facing Lambda may be deployed. |
 | **Workers still on master credentials** | `embed-tenders-batch` ran with the RDS master user as a one-off. Step 4 switches all workers to `bidintel_app`. Until then, do not deploy any Lambda with master credentials. |
+| **ALB is HTTP, not HTTPS** | **Cognito ID tokens (JWTs) travel in cleartext.** Acceptable only for internal local testing from known machines, over `http://localhost:8080`, with the ALB security group restricted to the test machines' IPs. **Must be replaced with HTTPS before cutover** — anyone on the network path can capture a token and replay it. ACM cannot issue for `bidintel-drab.vercel.app`; a controlled domain is required. |
 | **Operator IP churn** | The RDS security group allows a single `/32` and the operator's ISP address is dynamic. Mitigated by `scripts/allow-my-ip.sh`, which revokes the previous operator rule and adds the current IP in one call. Run it when a connection times out. |
 | **`bidintel-1` is publicly accessible** | Security group restricts to one office IP plus the Lambda SG. A private-subnet rebuild is deferred. |
 | **`bidintel-deploy` has AdministratorAccess** | Far more than needed. Deferred. |
@@ -287,6 +372,10 @@ frontend rewrite on `aws-migration` → local end-to-end test.
 - Full database security review: RLS behaviour per role and SECURITY DEFINER audit (basic grants and function lock-down are done before PostgREST goes live)
 - Vercel Pro decision (owner: not the current engineer). Required because Hobby cannot deploy private GitHub organization repos, and Hobby terms are non-commercial. Check which repo production deploys from (Vercel → Settings → Git); if it is the organization repo, merging to `main` at cutover will be blocked without Pro.
 - Cutover: pause Lovable writes, re-export anything changed since 11 Sep, load fresh `backfill_state`, enable EventBridge schedules, merge `aws-migration` to `main`, send users password reset emails
+- **Production hosting + HTTPS decision — owner: Karan.** ACM certificate on a subdomain of a
+  controlled domain vs CloudFront in front of the ALB vs another approach. Blocks cutover: the
+  frontend on `https://bidintel-drab.vercel.app` cannot call an HTTP ALB (browsers block mixed
+  content), and JWTs must not travel in cleartext in production
 - **ECS Exec for operator database access** (long-term option). An SSM bastion was planned, costed
   and written, then dropped: ~$3.70/month plus a local plugin install plus a port-forward before
   every connection was not worth it against one security-group rule. `scripts/allow-my-ip.sh`

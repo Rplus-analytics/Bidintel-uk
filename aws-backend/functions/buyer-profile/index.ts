@@ -16,6 +16,10 @@ const corsHeaders = {
 
 const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
 
+// Pinned. Tool/function-calling contract must match what the handler parses
+// below (choices[0].message.tool_calls[0].function.arguments).
+const CHAT_MODEL = "gpt-4o-mini";
+
 interface OrgMember {
   name: string;
   title: string;
@@ -58,13 +62,13 @@ export const handler = async (
       };
     }
 
-    // TODO(secrets): read from Secrets Manager rather than a plaintext Lambda env
-    // var. Either fetch at cold start and cache, or use the AWS Parameters and
-    // Secrets Lambda Extension. Env var is fine for a first deploy; it is not
-    // fine long-term because Lambda env vars are visible to anyone with
-    // lambda:GetFunctionConfiguration.
-    const LOVABLE_API_KEY = process.env.LOVABLE_API_KEY;
-    if (!LOVABLE_API_KEY) {
+    // OpenAI directly, not the Lovable AI Gateway — Lovable is the platform
+    // being migrated away from. MODEL IS PINNED: gpt-4o-mini supports the same
+    // tool-calling contract the Gemini call used, so the request/response shape
+    // below is unchanged. Do not swap the model without re-checking that the
+    // `return_buyer_profile` tool schema is still honoured.
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+    if (!OPENAI_API_KEY) {
       return {
         statusCode: 500,
         headers: jsonHeaders,
@@ -106,14 +110,14 @@ export const handler = async (
       },
     };
 
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: CHAT_MODEL,
         messages: [
           {
             role: "system",
@@ -132,7 +136,7 @@ export const handler = async (
       return {
         statusCode: aiRes.status === 429 || aiRes.status === 402 ? aiRes.status : 502,
         headers: jsonHeaders,
-        body: JSON.stringify({ error: "AI gateway error", detail: text }),
+        body: JSON.stringify({ error: "AI provider error", detail: text }),
       };
     }
 
