@@ -231,6 +231,49 @@ or `.rpc()`.
 Each of these returns a clear named error rather than a 404, so a missing
 function is reported as itself instead of as "search failed".
 
+## Known interaction: excluded `write_attributes` vs `NEW_PASSWORD_REQUIRED`
+
+**Worth knowing before touching either side, because the two look unrelated and
+the error names neither of them.**
+
+`custom:app_user_id` and `custom:org_id` are deliberately excluded from the SPA
+client's `write_attributes`. That is a real security control, not tidiness: those
+claims are what `auth.uid()` and the org-scoping RLS policies trust, so a user
+able to write them could re-point their own identity at another user's rows.
+They are readable, never writable.
+
+The interaction: Cognito's `NEW_PASSWORD_REQUIRED` challenge hands the client the
+user's **current** attributes — including those two. The obvious implementation
+passes that object straight back to `completeNewPasswordChallenge`, and Cognito
+rejects the whole call:
+
+```
+Input attributes include non-writable attributes for the client 4ua1vhje9gmm3kekuk6spvf1r
+```
+
+The account is fine, the password is correct, and the challenge is valid; only
+the echo is wrong. The error text names no attribute, so it reads like a client
+misconfiguration and invites "fix" by adding the attributes to
+`write_attributes` — **which would remove the control entirely.**
+
+**The fix belongs in the client.** Build the payload from the challenge's
+`requiredAttributes` — the list Cognito says must be supplied — never from the
+attributes it hands over. On this pool that list is empty: `email` is the only
+required attribute (besides system-managed `sub`) and it is already set, being
+the sign-in identifier. See `src/integrations/aws/cognito.ts`.
+
+A partial fix is worse than none: an earlier version deleted `email` and
+`email_verified` but missed the two `custom:` ones, which looked correct and
+failed identically.
+
+Regression cover: `./scripts/test-live-auth.sh` provisions a throwaway
+`FORCE_CHANGE_PASSWORD` user, drives the real module through challenge →
+completion → token, asserts `role` / `app_user_id` / `token_use` survive, and
+deletes the user. It is the only test that can catch this class of bug — both
+failures here were Cognito rejecting a request the client was perfectly happy to
+construct, so neither typechecking nor any offline test would have seen them.
+`npm test` skips it unless the env vars are set.
+
 ## Setting up a second tester (what Rajesh needs)
 
 > **There is no shareable test URL.** Vercel deploys the `main` branch against
@@ -527,6 +570,7 @@ and non-secret values only.
 | **`bidintel_app` has BYPASSRLS** | Accepted for ingestion/backfill/embedding workers, which write rows for every organisation and would otherwise be blocked by the data tables' RLS policies. **It must never back a user-facing function.** Step 3 introduces a separate `bidintel_api` role (LOGIN, **NOBYPASSRLS**) for `semantic-search` and `buyer-profile`, so the user-facing path reads data tables normally and reaches user tables only through RLS. Until that role exists, no user-facing Lambda may be deployed. |
 | **Workers still on master credentials** | `embed-tenders-batch` ran with the RDS master user as a one-off. Step 4 switches all workers to `bidintel_app`. Until then, do not deploy any Lambda with master credentials. |
 | **Sign-in rejected the emailed temporary password** | **Diagnosed 15 Sep; invitation resent.** Not a config fault. CloudTrail's `RespondToAuthChallenge` event (`PASSWORD_VERIFIER` step) showed `NotAuthorizedException: Incorrect username or password`, with `additionalEventData.sub` present — so the user resolved correctly and only the password was rejected. Verified independently that SRP + a temporary password + `FORCE_CHANGE_PASSWORD` works on this pool and that `newPasswordRequired` fires as the frontend expects, by creating a throwaway user with a known temporary password and running the frontend's exact code path. Pool config, client flows, `.env.local` and username handling were all confirmed correct, so the emailed value itself was the only remaining variable. A fresh invitation was sent (the previous temporary password is now invalid). Two contributing frontend weaknesses fixed: an expired temporary password was being reported as "Incorrect email or password", and a pasted password was not trimmed |
+| **New-password screen rejected the challenge** | **FIXED.** `completeNewPasswordChallenge` was echoing the challenge's attributes back, including the two non-writable custom claims → "Input attributes include non-writable attributes". Fixed in the client, NOT by loosening `write_attributes`. See "Known interaction" above |
 | **Blank page at localhost:8080** | **FIXED 15 Sep.** `amazon-cognito-identity-js` depends on `buffer@4.9.2`, a Node shim that references the bare identifier `global`, which browsers do not have. It threw `ReferenceError: global is not defined` at import time; because the auth layer is imported near the root of the module graph, React never mounted and the page rendered blank with nothing in the UI to indicate why. Fixed with `define: { global: "globalThis" }` in `vite.config.ts`. Confirmed in headless Chrome: no exceptions, `/auth` renders the sign-in form |
 | **No shareable test URL** | Vercel deploys `main` against Lovable; previewing `aws-migration` needs a Pro seat, and an HTTPS preview cannot call the HTTP ALB anyway. Every tester must run locally — see "Setting up a second tester" |
 | **ALB is HTTP, not HTTPS** | **Cognito ID tokens (JWTs) travel in cleartext.** Acceptable only for internal local testing from known machines, over `http://localhost:8080`, with the ALB security group restricted to the test machines' IPs. **Must be replaced with HTTPS before cutover** — anyone on the network path can capture a token and replay it. ACM cannot issue for `bidintel-drab.vercel.app`; a controlled domain is required. |

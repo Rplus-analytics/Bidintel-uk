@@ -179,17 +179,42 @@ export function signInWithPassword(email: string, password: string): Promise<Sig
         resolve({ status: "ERROR", message: friendlyError(err) });
       },
 
-      newPasswordRequired: (userAttributes: Record<string, any>) => {
-        // Cognito rejects these two if they are echoed back in the challenge
-        // response — they are not writable attributes.
-        delete userAttributes.email_verified;
-        delete userAttributes.email;
+      newPasswordRequired: (userAttributes: Record<string, any>, requiredAttributes?: string[]) => {
+        // DO NOT echo `userAttributes` back. The challenge hands over the
+        // user's CURRENT attributes — including custom:app_user_id and
+        // custom:org_id — and passing them to completeNewPasswordChallenge
+        // makes Cognito reject the whole call:
+        //
+        //   Input attributes include non-writable attributes for the client
+        //
+        // Those two are excluded from the client's write_attributes on purpose:
+        // it is the control that stops a user editing their own identity
+        // claims, which are exactly what RLS trusts. The fix belongs here, not
+        // in write_attributes.
+        //
+        // An earlier version deleted only `email` and `email_verified`, which
+        // missed the custom ones and left this broken.
+        //
+        // So build the payload from `requiredAttributes` — the list Cognito
+        // itself says must be supplied — rather than from what it handed us.
+        // On this pool that list is empty: `email` is the only required
+        // attribute and it is already set, being the sign-in identifier. The
+        // loop exists so this stays correct if the schema ever changes.
+        const payload: Record<string, string> = {};
+        for (const raw of requiredAttributes ?? []) {
+          // Cognito names these "userAttributes.email"; the library may or may
+          // not have stripped the prefix already.
+          const name = raw.replace(/^userAttributes\./, "");
+          if (name === "email_verified" || name.startsWith("custom:")) continue;
+          const value = userAttributes?.[name];
+          if (value != null) payload[name] = String(value);
+        }
 
         resolve({
           status: "NEW_PASSWORD_REQUIRED",
           complete: (newPassword: string) =>
             new Promise<SignInResult>((res) => {
-              user.completeNewPasswordChallenge(newPassword, userAttributes, {
+              user.completeNewPasswordChallenge(newPassword, payload, {
                 onSuccess: (s) => {
                   const session = toSession(s);
                   emit("SIGNED_IN", session);
