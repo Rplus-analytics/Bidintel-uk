@@ -155,8 +155,18 @@ export type SignInResult =
  */
 export function signInWithPassword(email: string, password: string): Promise<SignInResult> {
   return new Promise((resolve) => {
-    const user = new CognitoUser({ Username: email, Pool: pool, Storage: window.localStorage });
-    const details = new AuthenticationDetails({ Username: email, Password: password });
+    // Trimmed deliberately. The temporary password arrives in an invitation
+    // EMAIL and is copy-pasted, which routinely picks up a trailing space or a
+    // newline; SRP then fails with the generic "Incorrect username or password"
+    // and there is nothing on screen to suggest why. No password Cognito
+    // generates, and nothing this pool's policy permits, depends on leading or
+    // trailing whitespace being significant, so trimming cannot reject a
+    // password that would otherwise have worked.
+    const username = email.trim();
+    const secret = password.trim();
+
+    const user = new CognitoUser({ Username: username, Pool: pool, Storage: window.localStorage });
+    const details = new AuthenticationDetails({ Username: username, Password: secret });
 
     user.authenticateUser(details, {
       onSuccess: (s) => {
@@ -201,6 +211,18 @@ export function signInWithPassword(email: string, password: string): Promise<Sig
 // that setting exists to close.
 function friendlyError(err: any): string {
   const code = err?.code || err?.name || "";
+  const raw = String(err?.message || "");
+
+  // NotAuthorizedException is overloaded. Cognito uses it for a wrong password
+  // AND for an expired temporary password, distinguishing them only in the
+  // message text. Mapping the whole code to "Incorrect email or password" hid
+  // that, and an expired invitation looked identical to a typo — which is a bad
+  // place to lose information, because the two have completely different fixes
+  // (try again vs. ask an administrator to resend the invitation).
+  if (/temporary password/i.test(raw)) {
+    return "Your temporary password has expired. Ask an administrator to resend the invitation.";
+  }
+
   switch (code) {
     case "NotAuthorizedException":
       return "Incorrect email or password";
