@@ -1,6 +1,6 @@
 # BidIntel — AWS Deployment Status
 
-**Updated:** 2026-09-11 · **Branch:** `aws-migration` · **Account:** `008041477140` · **Region:** `eu-north-1`
+**Updated:** 2026-09-15 · **Branch:** `aws-migration` · **Account:** `008041477140` · **Region:** `eu-north-1`
 
 Handoff document. Another engineer should be able to pick the work up from here.
 Companion docs: [`DEPLOYMENT-PLAN.md`](DEPLOYMENT-PLAN.md) · [`BIDINTEL-STATUS.md`](BIDINTEL-STATUS.md) · [`RESTORE-LOVABLE-EXPORT.md`](RESTORE-LOVABLE-EXPORT.md) · [`../aws-backend/README.md`](../aws-backend/README.md)
@@ -51,7 +51,7 @@ Pre-token Lambda      bidintel-pre-token-generation
 State bucket          bidintel-tfstate-008041477140
 ```
 
-### Database `bidintel` — schema built, no data yet
+### Database `bidintel` — schema built and data loaded
 
 Built from Lovable's live `schema.sql` (the source of truth), applied with `ON_ERROR_STOP=1`.
 
@@ -66,6 +66,26 @@ Built from Lovable's live `schema.sql` (the source of truth), applied with `ON_E
 All four `search_tenders_hybrid` overloads installed from the live definition. Critical unique
 constraints verified present, including `buyers(name)` and `suppliers(name)` — the July import had
 none, which is how `awards` ended up with 14,188 duplicate rows.
+
+**Data load, 2026-09-15.** All 19 exported tables streamed in FK order directly from the zips (no
+local unzip), with user triggers disabled during the load so the export's own derived values were
+preserved. Every count matches `row_counts.csv`:
+
+```
+tenders 22,691   notices 22,855   awards 16,333   award_suppliers 21,922
+suppliers 14,220  cpv_codes 9,454  buyers 3,387   tenders_ccs 572
+backfill_state 16  saved_searches 7  profiles 7   memberships 6   auth.users 7
+organisations 1    org_match_profiles 1   org_name_aliases 6   saved_bids 3
+companies 0        user_actions 0
+```
+
+Verification: **zero FK orphans** across every single-column foreign key; **`awards` has 16,333 rows
+and 16,333 distinct `(source, external_id)` — no duplicates**, unlike the July import. Sequence
+resets were a no-op: all 31 primary keys are `uuid` with `gen_random_uuid()` defaults and there are
+zero identity/serial columns.
+
+**Embeddings: 22,088 of 22,691 tenders carry a 1536-dim vector.** Status breakdown:
+`completed` 22,088 · `processing` **602** · `failed` 1.
 
 `authenticated`, `anon`, `bidintel_app` and `postgres` all have `rolbypassrls = false`.
 
@@ -84,13 +104,13 @@ none, which is how `awards` ended up with 14,188 duplicate rows.
 
 | Item | Status |
 |---|---|
-| Data load into `bidintel` | **not started** — next step |
+| Data load into `bidintel` | **DONE 2026-09-15** — 19/19 tables, counts match `row_counts.csv` exactly, zero FK orphans, zero duplicate awards |
 | `db.ts` (database layer for all Lambdas) | not started — critical path |
 | Lambda deploys + API Gateway | not started |
 | PostgREST on Fargate + ALB | not started (Terraform not yet written) |
 | Cognito test users | not created |
 | Frontend Cognito/PostgREST rewrite | not started |
-| HNSW vector index | **deliberately skipped** — see below |
+| HNSW vector index | **DONE 2026-09-15** — `tenders_embedding_hnsw_idx`, 159 MB. Column altered to `vector(1536)` first, since HNSW cannot index an unconstrained `vector`. Planner confirmed using it: top-10 nearest neighbour in 5.3 ms |
 
 ---
 
@@ -108,7 +128,7 @@ none, which is how `awards` ended up with 14,188 duplicate rows.
 | **Reuse `bidintel-1`, resized to `db.t4g.medium`** | Saves ~$82/month over `db.m7g.large`. The ~250–320 MB pgvector working set fits inside its 1 GiB `shared_buffers`. CPU, not memory, is the constraint. |
 | **Local testing only** | Vercel Hobby cannot deploy private GitHub organization repos. Pro upgrade is pending someone else's decision. |
 | **Single NAT gateway** | $33.58/month per AZ. One is a single-AZ dependency, accepted: the interactive path never traverses it. |
-| **HNSW index skipped for now** | Lovable's dump types `tenders.embedding` as unconstrained `vector`, losing the `(1536)` dimension. HNSW requires a dimension. Left unconstrained by decision; semantic search still works, just without the index (sequential scan over ~22k vectors). Revisit with `ALTER TABLE tenders ALTER COLUMN embedding TYPE vector(1536)` then build HNSW with `SET maintenance_work_mem = '512MB'`. |
+| **HNSW index built** | Lovable's dump types `tenders.embedding` as unconstrained `vector`, losing the `(1536)` dimension that HNSW requires. The column was altered to `vector(1536)` (all 22,088 stored vectors verified 1536-dim), then the index built with `SET maintenance_work_mem = '512MB'` and the table `ANALYZE`d. Without it every semantic search would scan 22k rows. |
 
 ---
 
@@ -150,7 +170,7 @@ committed file.
 | `bidintel/openai` | `OPENAI_API_KEY` | **no — handover task** |
 | `bidintel/ai-gateway` | Lovable gateway key (legacy, may not be needed) | no |
 | `bidintel/resend` | Email keys for `daily-search-alerts` (deferred) | no |
-| `bidintel/app-db` | Application database role credentials | no |
+| `bidintel/app-db` | PostgREST authenticator role: `PGUSER`, `PGPASSWORD` (40 random alphanumeric chars, generated and stored without ever being displayed), `PGHOST`, `PGPORT`, `PGDATABASE` | **yes** |
 | `rds!db-…` (AWS-managed) | RDS master password | managed by AWS |
 
 Terraform creates the secret *containers* but never their values — a `secret_version` resource would
@@ -198,8 +218,9 @@ and non-secret values only.
 
 | Risk | Detail |
 |---|---|
-| **Semantic search needs the OpenAI key** | `semantic-search` embeds each query at request time. Without the key it degrades to keyword + CPV ranking, which it handles gracefully. 665 tenders also still need embedding. |
-| **No HNSW index** | Vector search does a sequential scan over ~22k rows. Acceptable at this scale; revisit if latency is poor. |
+| **Semantic search needs the OpenAI key** | `semantic-search` embeds each query at request time. Without the key it degrades to keyword + CPV ranking, which it handles gracefully. **603 tenders still need embedding** (602 `processing` + 1 `failed`). |
+| **602 tenders stuck in `processing`** | Left mid-flight by Lovable's interrupted `embed-tenders-batch` run. `embed-tenders-batch` only claims rows with `embedding_status = 'pending'`, so **these will never be picked up until they are reset** — see the handover task. |
+| **Operator IP churn** | The RDS security group allows a single `/32`, and the operator's ISP address changed twice in three days, breaking access mid-task each time. Tracked in the pending list. |
 | **`bidintel-1` is publicly accessible** | Security group restricts to one office IP plus the Lambda SG. A private-subnet rebuild is deferred. |
 | **`bidintel-deploy` has AdministratorAccess** | Far more than needed. Deferred. |
 | **Database master password has been used by tooling** | Rotate after launch. |
@@ -224,8 +245,19 @@ aws secretsmanager put-secret-value --secret-id bidintel/openai --secret-string 
 rm -P /tmp/.oai
 ```
 
-Then enable `buyer-profile`, run `embed-tenders-batch` once manually for the 665 unembedded tenders,
-and test semantic search locally.
+**Before running `embed-tenders-batch`, reset the interrupted rows.** 602 tenders are stuck in
+`embedding_status = 'processing'` from Lovable's interrupted run, and the worker only claims
+`pending` rows — without this they are never picked up:
+
+```sql
+UPDATE public.tenders
+   SET embedding_status = 'pending'
+ WHERE embedding_status = 'processing'
+   AND embedding IS NULL;          -- 602 rows expected
+```
+
+Then enable `buyer-profile`, run `embed-tenders-batch` manually for the 603 unembedded tenders, and
+test semantic search locally.
 
 **2. Continue the build** in this order: load data into `bidintel` → `db.ts` → deploy Lambdas and
 API Gateway → PostgREST on Fargate and ALB (only after the grant/role lock-down passes) → create the
@@ -243,4 +275,7 @@ two internal test users → frontend rewrite on `aws-migration` → local end-to
 - Full database security review: RLS behaviour per role and SECURITY DEFINER audit (basic grants and function lock-down are done before PostgREST goes live)
 - Vercel Pro decision (owner: not the current engineer). Required because Hobby cannot deploy private GitHub organization repos, and Hobby terms are non-commercial. Check which repo production deploys from (Vercel → Settings → Git); if it is the organization repo, merging to `main` at cutover will be blocked without Pro.
 - Cutover: pause Lovable writes, re-export anything changed since 11 Sep, load fresh `backfill_state`, enable EventBridge schedules, merge `aws-migration` to `main`, send users password reset emails
+- Move database access behind SSM Session Manager so no security-group IP rule is needed. The
+  operator's ISP address is dynamic and changed twice in three days, breaking access mid-task each
+  time; the current rule is a single `/32` that needs re-adding whenever it moves
 - Delete `~/bidintel-export/` from the local Mac once the load is confirmed
