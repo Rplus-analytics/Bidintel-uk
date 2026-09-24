@@ -539,6 +539,53 @@ does not raise.
 - [ ] "All sources" search returns fewer sources — TED, Sell2Wales, eTenders IE/NI never existed
 - [ ] **Data is a point-in-time copy from 11 Sep and is not updating** — see below
 
+## ⚠️ The daily ingesters look back only 24 HOURS
+
+`ingest-cf` and `ingest-fts` both compute their window as:
+
+```ts
+const from = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+```
+
+A fixed one-day window, with no cursor and no memory of the last successful run.
+
+**Any outage longer than a day leaves a permanent hole.** Miss three days and
+those three days are never fetched — the next run asks only for the last 24
+hours, succeeds, reports success, and the gap stays. Nothing alarms, because
+from the worker's point of view nothing failed.
+
+**This is exactly the 8 September failure mode**, and it is why that gap does not
+self-heal. It will recur on the next outage of more than a day unless something
+changes.
+
+### Recommendation
+
+Make the window derive from the data rather than from the clock:
+
+```ts
+// Start from the newest row we actually hold, minus a safety overlap, and
+// clamp so a long outage cannot ask for an unbounded range in one go.
+const newest = await db.from("tenders").select("published_at")
+  .order("published_at", { ascending: false }).limit(1).maybeSingle();
+const since = newest?.published_at
+  ? new Date(Date.parse(newest.published_at) - 48 * 3600_000)  // 48h overlap
+  : new Date(Date.now() - 7 * 86400_000);
+const from = new Date(Math.max(since.getTime(), Date.now() - 30 * 86400_000));
+```
+
+Three properties worth having, none of which the current code has:
+
+- **Self-healing.** After any outage the next run asks for everything missed.
+- **Overlapping.** A 48-hour overlap costs a few re-upserts (both feeds are
+  idempotent on `ocid` / `notice_identifier`) and absorbs upstream publishers
+  backdating a notice, which they do.
+- **Bounded.** The 30-day clamp stops a month-long outage turning the first
+  recovery run into a full-table scrape that times out — it walks back instead.
+
+Not applied yet: it changes ingestion behaviour, and the priority was to get the
+existing logic running unmodified first so any difference is attributable. Worth
+doing before the schedules are enabled for real.
+
 ## Ingestion adapter — BUILT (25 Sep), not yet deployed
 
 `_shared/db.ts` is no longer a stub. `_shared/sql-builder.ts` translates the
@@ -581,6 +628,52 @@ runs 20 assertions against the real database: **20 passed, 0 failed.**
 - **Switch `embed-tenders-batch` off the RDS master credentials** — it is the
   last thing holding them, and the masking above is exactly why that matters.
 - Monitoring, so a silent stop cannot recur. See below.
+
+## Cutover comparison: AWS will hold MORE than Lovable, and that is correct
+
+Once AWS backfills 8–24 Sep, it holds a window Lovable never ingested. **Row
+counts will not match, and requiring them to match would be requiring AWS to
+reproduce Lovable's outage.**
+
+So `count(*)` is the wrong check. It was only ever a proxy for "did the copy
+work", and it stops being one the moment the two systems diverge legitimately.
+
+### What to check instead
+
+**1. Containment, not equality.** Every tender Lovable holds must exist on AWS.
+The reverse is expected to fail, and that is the point.
+
+```sql
+-- Run on AWS. Should be 0. Compare against a list of Lovable ocids.
+SELECT count(*) FROM lovable_ocids l
+WHERE NOT EXISTS (SELECT 1 FROM tenders t WHERE t.ocid = l.ocid);
+```
+
+**2. Agreement on the shared window.** Restrict both sides to
+`published_at <= 2026-09-07`, where the two systems should be identical, and
+compare counts there. A mismatch inside that window is a real migration defect;
+a difference after it is the backfill working.
+
+```sql
+SELECT count(*), min(published_at), max(published_at)
+FROM tenders WHERE published_at <= '2026-09-07';
+```
+
+**3. Per-row fidelity on a sample.** Pick ~200 ocids spanning the whole range and
+compare the fields the app actually renders — title, buyer, value, deadline,
+CPV, status. Counts matching while a field is silently null everywhere is a
+failure mode counts cannot see.
+
+**4. The application, not the database.** Same search on both, same filters,
+compare the top 20. The point of the migration is that the app behaves the same,
+and search ranking depends on embeddings, `search_tsv` and the HNSW index, none
+of which a row count exercises.
+
+**5. Explain the surplus, do not just accept it.** Every AWS row with
+`published_at > 2026-09-07` should be attributable to the backfill of a known
+window. A surplus outside 8–24 Sep means something ingested more than intended —
+duplicates from an overlapping cursor, say — and that is worth catching before
+cutover rather than after.
 
 ## Closing the 8 Sep gap: the backfill workers CANNOT do it
 

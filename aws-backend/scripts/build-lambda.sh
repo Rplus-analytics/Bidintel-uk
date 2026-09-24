@@ -20,7 +20,19 @@ ROOT="$PWD"
 OUT="$ROOT/build"
 mkdir -p "$OUT"
 
-LAUNCH=(semantic-search buyer-profile contracts-finder contracts-scotland find-a-tender)
+LAUNCH=(
+  # user-facing
+  semantic-search buyer-profile contracts-finder contracts-scotland find-a-tender
+  # ingestion
+  ingest-cf ingest-fts ingest-cf-native ingest-contracts-scotland ingest-cf-bulk
+  ingest-source-full ingest-trigger sync-notices normalize-raw-cf
+  scrape-cf-notice scrape-ccs-digital-outcomes
+  # backfill
+  backfill-tick backfill-source-tick backfill-status backfill-raw-cf
+  backfill-cf-bulk-tick backfill-linked-tables
+  # embedding
+  embed-tenders-batch generate-tender-embedding
+)
 TARGETS=("${@:-}")
 [ -z "${1:-}" ] && TARGETS=("${LAUNCH[@]}")
 

@@ -52,13 +52,66 @@ interface SourceNotice {
 }
 
 // TODO(config): base URL of the migrated source proxies. On Supabase these were
-// sibling edge functions at ${SUPABASE_URL}/functions/v1/<fn>. On AWS they are
-// the API Gateway routes stood up for contracts-finder / contracts-scotland /
-// find-a-tender in batch 1, so this is the API Gateway stage base URL. Those
-// routes are unauthenticated, so no Authorization header is needed.
+// sibling edge functions at ${SUPABASE_URL}/functions/v1/<fn>.
+//
+// THE ORIGINAL PORTING NOTE HERE WAS WRONG. It said those routes were
+// "unauthenticated, so no Authorization header is needed". On AWS every route on
+// the HTTP API carries the Cognito JWT authorizer, including contracts-finder,
+// contracts-scotland and find-a-tender. An unauthenticated POST returns 401 —
+// confirmed against the live API — and callSource() swallows a non-2xx into an
+// empty array. This worker would have run cleanly, reported success, and
+// ingested NOTHING from all three sources.
+//
+// Fixed by not going through the public edge at all. Service-to-service calls
+// use the Lambda API, authorised by this function's IAM role, which is both
+// stronger and simpler than minting a user token for a machine: no token to
+// obtain, nothing to expire, and the API Gateway stays closed.
+//
+// SOURCE_FN_PREFIX (e.g. "bidintel-") selects direct invocation. SOURCE_FN_BASE
+// is kept as an HTTP fallback so the function still runs against a local or
+// unauthenticated stack.
 const SOURCE_FN_BASE = process.env.SOURCE_FN_BASE ?? "";
+const SOURCE_FN_PREFIX = process.env.SOURCE_FN_PREFIX ?? "";
+
+/** Invoke a source function through the Lambda API, authorised by IAM. */
+async function invokeSourceLambda(fn: string, body: Record<string, unknown>): Promise<SourceNotice[]> {
+  const { LambdaClient, InvokeCommand } = await import("@aws-sdk/client-lambda");
+  const client = new LambdaClient({});
+  // The source functions are API Gateway v2 proxy handlers, so they are handed
+  // the same event shape the gateway would have produced.
+  const event = {
+    version: "2.0",
+    requestContext: { http: { method: "POST" } },
+    body: JSON.stringify(body),
+    isBase64Encoded: false,
+  };
+  const res = await client.send(new InvokeCommand({
+    FunctionName: `${SOURCE_FN_PREFIX}${fn}`,
+    Payload: Buffer.from(JSON.stringify(event)),
+  }));
+  if (res.FunctionError) {
+    console.warn(`[${fn}] lambda error: ${res.FunctionError}`);
+    return [];
+  }
+  const raw = Buffer.from(res.Payload ?? new Uint8Array()).toString("utf-8");
+  const envelope = JSON.parse(raw || "{}");
+  if (envelope.statusCode && envelope.statusCode >= 400) {
+    console.warn(`[${fn}] ${envelope.statusCode}`);
+    return [];
+  }
+  const data = JSON.parse(envelope.body || "{}");
+  return Array.isArray(data?.notices) ? data.notices : [];
+}
 
 async function callSource(fn: string, body: Record<string, unknown>): Promise<SourceNotice[]> {
+  if (SOURCE_FN_PREFIX) {
+    try {
+      return await invokeSourceLambda(fn, body);
+    } catch (e) {
+      console.warn(`[${fn}] invoke failed`, e instanceof Error ? e.message : e);
+      return [];
+    }
+  }
   const url = `${SOURCE_FN_BASE}/${fn}`;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 140_000);
