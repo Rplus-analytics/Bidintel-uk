@@ -20,6 +20,8 @@ import type { ScheduledEvent } from "aws-lambda";
 import { createDbClient, isDbConfigured } from "../_shared/db";
 import { upsertLinkedFromRelease } from "../_shared/ocds-linked";
 import { mirrorTendersToNotices } from "../_shared/notices-mirror";
+import { USER_AGENT } from "../_shared/user-agent";
+import { nextWindow, commitWindow, type Window } from "../_shared/watermark";
 
 const TARGET_CPV_PREFIXES = ["72", "73", "79", "80", "85"];
 
@@ -78,12 +80,28 @@ async function run(detail: Record<string, any>): Promise<any> {
   const errors: any[] = [];
   let totalUpserted = 0;
   let scanned = 0;
+  // Declared out here because the watermark is committed AFTER the try/catch:
+  // a fatal error must still leave the watermark untouched, not undefined.
+  let win: Window | null = null;
 
   try {
-    const today = new Date();
-    const from = new Date(today.getTime() - 24 * 60 * 60 * 1000)
-      .toISOString().slice(0, 19);
-    const to = today.toISOString().slice(0, 19);
+    // WINDOW COMES FROM THE WATERMARK, NOT THE CLOCK.
+    //
+    // This was `now - 24 hours`, which loses any outage longer than a day
+    // permanently: the next run asks only for yesterday, succeeds, and the
+    // missed days are never requested again. That is what turned the upstream
+    // 403s from 8 Sep into seventeen silently missing days.
+    //
+    // nextWindow() resumes from the last SUCCESSFUL window end (minus a 48h
+    // overlap for backdated notices) and caps a single run at 14 days so a long
+    // gap is closed over several runs instead of one that times out.
+    win = await nextWindow(supabase, "cf");
+    const from = win.from.toISOString().slice(0, 19);
+    const to = win.to.toISOString().slice(0, 19);
+    console.log(JSON.stringify({
+      source: "cf", window_from: from, window_to: to,
+      span_hours: Number(win.spanHours.toFixed(1)), partial_catch_up: win.partial,
+    }));
 
     let nextUrl: string | null =
       `https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search` +
@@ -97,7 +115,7 @@ async function run(detail: Record<string, any>): Promise<any> {
       const res = await fetch(nextUrl, {
         headers: {
           Accept: "application/json",
-          "User-Agent": "Mozilla/5.0 BidIntel/1.0",
+          "User-Agent": USER_AGENT,
         },
       });
       if (!res.ok) {
@@ -175,6 +193,25 @@ async function run(detail: Record<string, any>): Promise<any> {
     }
   } catch (e: any) {
     errors.push({ fatal: e.message });
+  }
+
+  // ADVANCE THE WATERMARK ONLY ON A CLEAN RUN.
+  //
+  // A run that hit upstream errors must leave it where it was, so the next run
+  // retries the same window. This is the crux: the 403s produced runs that
+  // "succeeded" while fetching nothing, and a watermark advanced on such a run
+  // would bake the loss in exactly as the 24-hour window did.
+  if (errors.length === 0 && win) {
+    try {
+      await commitWindow(supabase, "cf", win);
+    } catch (e: any) {
+      errors.push({ watermark: e?.message ?? String(e) });
+    }
+  } else {
+    console.warn(JSON.stringify({
+      source: "cf", watermark: "NOT advanced", reason: "run reported errors",
+      window_to: win?.to?.toISOString() ?? null, error_count: errors.length,
+    }));
   }
 
   const duration = Date.now() - runStart;

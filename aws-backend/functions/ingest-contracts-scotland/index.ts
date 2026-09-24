@@ -18,6 +18,7 @@
 
 import type { ScheduledEvent } from "aws-lambda";
 import { createDbClient, isDbConfigured } from "../_shared/db";
+import { USER_AGENT } from "../_shared/user-agent";
 
 const TARGET_CPV_PREFIXES = ["72", "73", "79", "80", "85"];
 
@@ -46,7 +47,7 @@ function matchesCpv(codes: string[]): boolean {
 }
 
 const HEADERS = {
-  "User-Agent": "Mozilla/5.0 BidIntel/1.0",
+  "User-Agent": USER_AGENT,
   "Accept": "application/json",
 };
 

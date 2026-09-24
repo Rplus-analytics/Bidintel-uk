@@ -33,6 +33,7 @@
 import type { ScheduledEvent } from "aws-lambda";
 import { parse as parseCsvSync } from "csv-parse/sync";
 import { createDbClient, isDbConfigured } from "../_shared/db";
+import { USER_AGENT } from "../_shared/user-agent";
 
 const supabase = createDbClient();
 
@@ -81,7 +82,9 @@ async function invokeSelfAsync(_day: string): Promise<void> {
 
 const CKAN = "https://ckan.publishing.service.gov.uk/api/3/action/package_show";
 const OCDS_SEARCH = "https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search";
-const UA = "lovable-cf-bulk/1.1 (+contact: lovable.dev)";
+// Honest already, but it named the platform being migrated away from — an
+// operator trying to reach us about this traffic would have contacted Lovable.
+const UA = USER_AGENT;
 
 // 30s, 60s, 120s
 const RETRY_DELAYS_MS = [30_000, 60_000, 120_000];

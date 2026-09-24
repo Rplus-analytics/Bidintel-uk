@@ -30,6 +30,7 @@ import type { ScheduledEvent } from "aws-lambda";
 import { Agent } from "undici";
 import { rootCertificates } from "node:tls";
 import { createDbClient, isDbConfigured } from "../_shared/db";
+import { USER_AGENT } from "../_shared/user-agent";
 
 const MAX_ROWS_PER_TICK = 500;
 
@@ -283,7 +284,7 @@ async function fetchPcsJson(url: string): Promise<any> {
       const res = await fetch(url, {
         // Node's global fetch IS undici, so it honours the dispatcher option.
         dispatcher: client,
-        headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 BidIntel/1.0" },
+        headers: { Accept: "application/json", "User-Agent": USER_AGENT },
       } as any);
       if (res.ok) return await res.json();
       await res.body?.cancel();
@@ -292,7 +293,7 @@ async function fetchPcsJson(url: string): Promise<any> {
   // 2) Plain direct fetch (in case the runtime already trusts the chain).
   try {
     const res = await fetch(url, {
-      headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 BidIntel/1.0" },
+      headers: { Accept: "application/json", "User-Agent": USER_AGENT },
     });
     if (res.ok) return await res.json();
     await res.body?.cancel();

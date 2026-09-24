@@ -16,6 +16,7 @@
 
 import type { ScheduledEvent } from "aws-lambda";
 import { createDbClient, isDbConfigured } from "../_shared/db";
+import { USER_AGENT } from "../_shared/user-agent";
 
 const supabase = createDbClient();
 
@@ -135,7 +136,7 @@ async function fetchPage(framework: string, status: string, page: number): Promi
     const res = await fetch(url, {
       signal: ctrl.signal,
       headers: {
-        "User-Agent": "Mozilla/5.0 BidIntel/1.0",
+        "User-Agent": USER_AGENT,
         "Accept": "text/html,application/xhtml+xml",
       },
     });

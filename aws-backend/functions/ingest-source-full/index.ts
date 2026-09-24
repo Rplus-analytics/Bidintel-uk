@@ -14,6 +14,7 @@
 
 import type { ScheduledEvent } from "aws-lambda";
 import { createDbClient, isDbConfigured } from "../_shared/db";
+import { USER_AGENT } from "../_shared/user-agent";
 
 const supabase = createDbClient();
 
@@ -149,7 +150,7 @@ async function ingestPcs(): Promise<{ count: number; errors: any[] }> {
     let json: any;
     try {
       const res = await fetch(`${PCS_BASE}?limit=100&offset=${offset}`, {
-        headers: { "User-Agent": "Mozilla/5.0 BidIntel/1.0", Accept: "application/json" },
+        headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
       });
       json = await res.json();
     } catch (e: any) { errors.push({ offset, fetch: e.message }); break; }

@@ -539,6 +539,69 @@ does not raise.
 - [ ] "All sources" search returns fewer sources — TED, Sell2Wales, eTenders IE/NI never existed
 - [ ] **Data is a point-in-time copy from 11 Sep and is not updating** — see below
 
+## Root cause of the stale data: upstream 403s, and what we found testing them
+
+Reported 25 Sep: Find a Tender and Contracts Finder have returned **403** to the
+old platform since 9 Sep, and Public Contracts Scotland since May. That is the
+root cause — not the migration, and not a platform fault.
+
+### Tested from here and from AWS: all three return 200
+
+| API | From operator laptop | From AWS Lambda |
+|---|---|---|
+| Find a Tender (OCDS) | **200** | **200**, 5 notices |
+| Contracts Finder (OCDS Search) | **200** | — |
+| Contracts Finder (V2 search_notices) | **200** | **200**, 2,914 hits |
+| Public Contracts Scotland | **200**, live 24 Sep data | **200**, 92 hits |
+
+Requests used exactly the headers the ingesters send. **So the block is specific
+to the old platform's egress, not to these clients or to datacentre traffic in
+general.**
+
+### What these APIs require: nothing
+
+No API key, no registration, no token. All three are open OCDS endpoints. There
+is no credential to obtain and nothing to apply for — which also means there is
+no supported channel through which the old platform's block could be lifted,
+short of contacting the operators.
+
+### But the code WAS spoofing a browser, and that is now fixed
+
+Nine functions sent `User-Agent: Mozilla/5.0 BidIntel/1.0`, and `scrape-cf-notice`
+sent a full Chrome-on-Windows string. Both claim to be a browser; neither is one.
+`ingest-cf-bulk` was honest but identified itself as `lovable-cf-bulk` with a
+`lovable.dev` contact — an operator trying to reach us would have contacted the
+wrong company.
+
+All now send:
+
+```
+BidIntel/1.0 (+https://bidintel.rplusai.co.uk; automated procurement data collection)
+```
+
+Two independent reasons, and the second is speculative but cheap:
+
+1. **It was false.** These are UK public-sector APIs whose terms expect automated
+   clients to identify themselves. A contact point is what lets an operator
+   throttle or email us instead of silently blocking us.
+2. **It is a plausible cause of the 403s.** A browser User-Agent arriving from a
+   datacentre IP on a fixed hourly cadence is a common signature for exactly that
+   kind of block. Unproven — the same requests succeed today from both tested
+   origins — but presenting an honest identity removes the most likely trigger
+   rather than daring the next one.
+
+Deliberately **not** a different browser string. Rotating or disguising the
+client would be evading a block rather than not earning one, and would make the
+next 403 harder to diagnose.
+
+### What this means
+
+AWS is not currently blocked, so the ingesters should work there. That is not
+the same as being safe: if the block was behavioural rather than a manual IP
+entry, the same cadence from a new IP may earn the same result. The honest UA,
+the watermark below, and the freshness alarm are what turn a silent recurrence
+into a loud one.
+
 ## ⚠️ The daily ingesters look back only 24 HOURS
 
 `ingest-cf` and `ingest-fts` both compute their window as:
@@ -582,9 +645,27 @@ Three properties worth having, none of which the current code has:
 - **Bounded.** The 30-day clamp stops a month-long outage turning the first
   recovery run into a full-table scrape that times out — it walks back instead.
 
-Not applied yet: it changes ingestion behaviour, and the priority was to get the
-existing logic running unmodified first so any difference is attributable. Worth
-doing before the schedules are enabled for real.
+**IMPLEMENTED 25 Sep**, because the 403 finding made it urgent rather than
+theoretical: the gap it creates is exactly how seventeen days went missing.
+
+`public.ingest_watermark` (schema/07-ingest-watermark.sql) stores the end of the
+last **successful** window per source; `_shared/watermark.ts` computes the next
+one. Both daily ingesters now resume from it.
+
+- **Self-healing** — after any outage the next run asks for everything missed.
+- **48h overlap** — absorbs upstream publishers backdating notices. Both feeds
+  are idempotent on their conflict key, so re-fetching is free.
+- **14-day cap per run** — a month-long outage is closed over several runs
+  rather than one that times out. A run that times out never advances the
+  watermark, so without the cap it would retry the same impossible window
+  forever.
+- **Advanced only on a clean run.** This is the crux: the 403s produced runs
+  that "succeeded" while fetching nothing. A watermark advanced on such a run
+  would bake the loss in exactly as the 24-hour window did. Errors leave it
+  where it was and the next run retries that window.
+
+Seeded at **2026-09-07** for both sources, so the first run closes the 8–24 Sep
+gap instead of starting from now and leaving it open permanently.
 
 ## Ingestion adapter — BUILT (25 Sep), not yet deployed
 
