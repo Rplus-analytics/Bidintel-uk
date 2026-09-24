@@ -97,6 +97,11 @@ resource "aws_lb" "main" {
   # listener must not be casually deleted while it is the only way in.
   enable_deletion_protection = false
 
+  access_logs {
+    bucket  = aws_s3_bucket.alb_logs.id
+    enabled = true
+  }
+
   # Longer than PostgREST's slowest expected query; shorter than the ALB default
   # of 60s so a stuck connection is not held open for a minute.
   idle_timeout = 45
@@ -411,4 +416,63 @@ resource "aws_lb_listener" "http" {
       }
     }
   }
+}
+
+# ---------------------------------------------------------------------------
+# ALB access logs
+# ---------------------------------------------------------------------------
+#
+# ADDED AFTER A QUESTION THIS STACK COULD NOT ANSWER. Asked "if someone reached
+# the AWS stack, tell me from where", the only available evidence was the
+# CloudWatch RequestCount metric — which proves how MANY requests arrived and
+# nothing about who sent them. Access logs record the client IP, the path, the
+# status and the user agent, so the next time that question is asked it has an
+# answer rather than an inference.
+#
+# Cheap at this volume: logs are written only when requests arrive, and the
+# lifecycle rule below expires them at 30 days.
+
+resource "aws_s3_bucket" "alb_logs" {
+  bucket        = "${var.name_prefix}-alb-logs-008041477140"
+  force_destroy = true # access logs are disposable; never block a teardown on them
+}
+
+resource "aws_s3_bucket_public_access_block" "alb_logs" {
+  bucket                  = aws_s3_bucket.alb_logs.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "alb_logs" {
+  bucket = aws_s3_bucket.alb_logs.id
+  rule {
+    id     = "expire"
+    status = "Enabled"
+    filter {}
+    expiration { days = 30 }
+  }
+}
+
+# Which principal writes the logs differs by region age: older regions use a
+# per-region ELB account, newer ones a service principal. This data source
+# resolves the right one rather than hard-coding an account ID that is wrong in
+# half of AWS.
+data "aws_elb_service_account" "main" {}
+
+data "aws_iam_policy_document" "alb_logs" {
+  statement {
+    principals {
+      type        = "AWS"
+      identifiers = [data.aws_elb_service_account.main.arn]
+    }
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.alb_logs.arn}/*"]
+  }
+}
+
+resource "aws_s3_bucket_policy" "alb_logs" {
+  bucket = aws_s3_bucket.alb_logs.id
+  policy = data.aws_iam_policy_document.alb_logs.json
 }

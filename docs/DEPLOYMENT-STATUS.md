@@ -19,6 +19,72 @@ once DNS is ready.
 Then: build the ingestion adapter (`_shared/db.ts`), which is the last thing
 standing between this stack and cutover.
 
+## Ingestion stopped on LOVABLE, around 8 September — before the migration
+
+The "frozen at 7 Sep" symptom is **not** an artefact of the AWS copy. It is
+present on the live Lovable system and predates this work.
+
+Evidence, from the 11 Sep export itself — rows created per day in `tenders`:
+
+| created_at | rows |
+|---|---:|
+| 2026-09-05 | 172 |
+| 2026-09-06 | 2 |
+| 2026-09-07 | 1 |
+| 2026-09-08 | **127** |
+| 2026-09-09 | **0** |
+| 2026-09-10 | **1** |
+
+Healthy daily ingestion through 8 Sep, then it stops. `max(published_at)` is
+**7 Sep** and `max(created_at)` is 10 Sep (a single row). The export was taken on
+**11 Sep**, so Lovable had already stopped ingesting three days before the copy
+was made. The AWS database did not go stale — **it inherited a stale source.**
+
+`ingest_runs` is empty in the export (0 rows), so it cannot narrow this further.
+
+### Why this could not be confirmed against Lovable directly
+
+The committed anon key reaches Lovable's PostgREST, but Lovable's `tenders`
+policy is `auth.role() = 'authenticated'`, so anon reads are filtered to nothing
+and every query returns `[]` **whether or not data exists**.
+
+A control proved it: `published_at` between 1–5 Aug 2026 returns `[]` from
+Lovable, while the AWS copy — taken from Lovable's own export — holds **317 rows**
+for that exact window. So every `[]` from that key is meaningless.
+
+This is the same trap as the semantic-search bug: under RLS, "no rows" and "no
+permission" are indistinguishable. Any check of Lovable's freshness must be run
+as an authenticated user or from the Lovable SQL editor.
+
+### How to check Lovable yourself
+
+In the Lovable Cloud / Supabase SQL editor:
+
+```sql
+-- Is anything arriving at all?
+SELECT max(published_at) AS newest_published,
+       max(created_at)   AS newest_row,
+       count(*)          AS total
+FROM tenders;
+
+-- Where it stopped
+SELECT created_at::date, count(*) FROM tenders
+GROUP BY 1 ORDER BY 1 DESC LIMIT 14;
+
+-- The schedules themselves
+SELECT jobid, jobname, schedule, active FROM cron.job ORDER BY jobid;
+
+-- Recent runs, and why they failed
+SELECT jobid, status, start_time, end_time, return_message
+FROM cron.job_run_details
+ORDER BY start_time DESC LIMIT 30;
+```
+
+`cron.job_run_details` is the one that matters: it shows whether the jobs are
+still firing and what they returned. If `active` is false, or the jobs are firing
+and failing, that is the root cause and it is a **Lovable-side** problem to fix —
+independent of this migration.
+
 ## ⚠️ WHO IS ACTUALLY ON WHICH BACKEND (checked 25 Sep)
 
 **Nobody has used the AWS stack. All seven users are on Lovable.** This was
