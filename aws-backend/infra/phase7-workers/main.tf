@@ -20,32 +20,49 @@ locals {
 
   # timeout: generous where a function pages through an upstream API; Lambda's
   # ceiling is 900s and several of these legitimately need minutes.
+  #
+  # reserved = 1 SINGLE-FLIGHTS a worker, and it is not a cost control.
+  #
+  # Find a Tender rate-limits per IP ("Rate limit of 12 exceeded"), and every
+  # VPC Lambda here shares one NAT address. Four concurrent ingest-fts
+  # invocations — which is what repeated manual invocations produced — therefore
+  # sabotage each other: each container paces itself correctly and the host still
+  # sees four times the agreed rate. Per-container pacing cannot fix that; only
+  # limiting concurrency can.
+  #
+  # It is also correct independently: these are cron singletons that hold
+  # advisory locks in backfill_state, and two concurrent runs of the same worker
+  # duplicate work and contend for the same lock.
+  #
+  # This was impossible until 25 Sep, when the account concurrency quota was
+  # raised from 10 to 1000 — at 10, ANY reservation was rejected for dropping
+  # unreserved capacity below the floor.
   workers = {
     # --- ingestion ---------------------------------------------------------
-    ingest-cf                   = { timeout = 300, memory = 512, schedule = "rate(1 hour)", ai = false }
-    ingest-fts                  = { timeout = 300, memory = 512, schedule = "rate(1 hour)", ai = false }
-    ingest-cf-native            = { timeout = 600, memory = 768, schedule = "rate(30 minutes)", ai = false }
-    ingest-contracts-scotland   = { timeout = 300, memory = 512, schedule = "rate(2 hours)", ai = false }
-    ingest-cf-bulk              = { timeout = 900, memory = 1536, schedule = null, ai = false }
-    ingest-source-full          = { timeout = 900, memory = 1024, schedule = null, ai = false }
+    ingest-cf                   = { timeout = 720, memory = 512, reserved = 1, schedule = "rate(1 hour)", ai = false }
+    ingest-fts                  = { timeout = 720, memory = 512, reserved = 1, schedule = "rate(1 hour)", ai = false }
+    ingest-cf-native            = { timeout = 600, memory = 768, reserved = 1, schedule = "rate(30 minutes)", ai = false }
+    ingest-contracts-scotland   = { timeout = 300, memory = 512, reserved = 1, schedule = "rate(2 hours)", ai = false }
+    ingest-cf-bulk              = { timeout = 900, memory = 1536, reserved = 1, schedule = null, ai = false }
+    ingest-source-full          = { timeout = 900, memory = 1024, reserved = 1, schedule = null, ai = false }
     ingest-trigger              = { timeout = 120, memory = 512, schedule = null, ai = false }
-    sync-notices                = { timeout = 900, memory = 1024, schedule = "rate(6 hours)", ai = false }
-    normalize-raw-cf            = { timeout = 600, memory = 1024, schedule = "rate(1 hour)", ai = false }
+    sync-notices                = { timeout = 900, memory = 1024, reserved = 1, schedule = "rate(6 hours)", ai = false }
+    normalize-raw-cf            = { timeout = 600, memory = 1024, reserved = 1, schedule = "rate(1 hour)", ai = false }
     scrape-cf-notice            = { timeout = 120, memory = 512, schedule = null, ai = false }
-    scrape-ccs-digital-outcomes = { timeout = 600, memory = 768, schedule = "rate(12 hours)", ai = false }
+    scrape-ccs-digital-outcomes = { timeout = 600, memory = 768, reserved = 1, schedule = "rate(12 hours)", ai = false }
 
     # --- backfill ----------------------------------------------------------
-    backfill-tick          = { timeout = 600, memory = 768, schedule = "rate(5 minutes)", ai = false }
-    backfill-source-tick   = { timeout = 600, memory = 768, schedule = "rate(5 minutes)", ai = false }
+    backfill-tick          = { timeout = 600, memory = 768, reserved = 1, schedule = "rate(5 minutes)", ai = false }
+    backfill-source-tick   = { timeout = 600, memory = 768, reserved = 1, schedule = "rate(5 minutes)", ai = false }
     backfill-status        = { timeout = 60, memory = 512, schedule = null, ai = false }
-    backfill-raw-cf        = { timeout = 900, memory = 1024, schedule = null, ai = false }
-    backfill-cf-bulk-tick  = { timeout = 900, memory = 1024, schedule = null, ai = false }
+    backfill-raw-cf        = { timeout = 900, memory = 1024, reserved = 1, schedule = null, ai = false }
+    backfill-cf-bulk-tick  = { timeout = 900, memory = 1024, reserved = 1, schedule = null, ai = false }
     # No schedule, ever. It is gated behind BACKFILL_LINKED_TABLES_ENABLED and an
     # admin token precisely so it cannot run unattended.
     backfill-linked-tables = { timeout = 900, memory = 1024, schedule = null, ai = false }
 
     # --- embedding ---------------------------------------------------------
-    embed-tenders-batch       = { timeout = 600, memory = 1024, schedule = "rate(15 minutes)", ai = true }
+    embed-tenders-batch       = { timeout = 600, memory = 1024, reserved = 1, schedule = "rate(15 minutes)", ai = true }
     generate-tender-embedding = { timeout = 120, memory = 512, schedule = null, ai = true }
   }
 }
@@ -178,6 +195,7 @@ resource "aws_lambda_function" "fn" {
   architectures    = ["arm64"]
   timeout          = each.value.timeout
   memory_size      = each.value.memory
+  reserved_concurrent_executions = try(each.value.reserved, -1)
 
   environment {
     variables = merge(

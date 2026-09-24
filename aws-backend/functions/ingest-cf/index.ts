@@ -21,7 +21,8 @@ import { createDbClient, isDbConfigured } from "../_shared/db";
 import { upsertLinkedFromRelease } from "../_shared/ocds-linked";
 import { mirrorTendersToNotices } from "../_shared/notices-mirror";
 import { USER_AGENT } from "../_shared/user-agent";
-import { nextWindow, commitWindow, type Window } from "../_shared/watermark";
+import { nextWindow, commitWindow, blocksWatermark, type Window } from "../_shared/watermark";
+import { politeFetch } from "../_shared/polite-fetch";
 
 const TARGET_CPV_PREFIXES = ["72", "73", "79", "80", "85"];
 
@@ -62,7 +63,7 @@ function mapStatus(s: any): string {
   }
 }
 
-async function run(detail: Record<string, any>): Promise<any> {
+async function run(detail: Record<string, any>, ctx?: any): Promise<any> {
   // The Deno original gated on a shared INGEST_SECRET because Supabase Edge
   // Functions are publicly reachable URLs. An EventBridge-invoked Lambda is not:
   // invocation is IAM-authorised by the rule's permission. The secret check is
@@ -112,11 +113,12 @@ async function run(detail: Record<string, any>): Promise<any> {
 
     while (nextUrl && pages < maxPages) {
       pages++;
-      const res = await fetch(nextUrl, {
+      const res = await politeFetch(nextUrl, {
         headers: {
           Accept: "application/json",
           "User-Agent": USER_AGENT,
         },
+        remainingMs: () => ctx?.getRemainingTimeInMillis?.() ?? 300_000,
       });
       if (!res.ok) {
         errors.push({ page: pages, status: res.status, body: (await res.text()).slice(0, 300) });
@@ -201,7 +203,7 @@ async function run(detail: Record<string, any>): Promise<any> {
   // retries the same window. This is the crux: the 403s produced runs that
   // "succeeded" while fetching nothing, and a watermark advanced on such a run
   // would bake the loss in exactly as the 24-hour window did.
-  if (errors.length === 0 && win) {
+  if (win && !blocksWatermark(errors)) {
     try {
       await commitWindow(supabase, "cf", win);
     } catch (e: any) {
@@ -209,7 +211,7 @@ async function run(detail: Record<string, any>): Promise<any> {
     }
   } else {
     console.warn(JSON.stringify({
-      source: "cf", watermark: "NOT advanced", reason: "run reported errors",
+      source: "cf", watermark: "NOT advanced", reason: "run reported errors that indicate the window was not retrieved",
       window_to: win?.to?.toISOString() ?? null, error_count: errors.length,
     }));
   }
@@ -235,18 +237,17 @@ async function run(detail: Record<string, any>): Promise<any> {
  * Errors metric. The Deno original's `return new Response(..., {status:500})`
  * would have been silently recorded as a SUCCESSFUL invocation here.
  */
-export const handler = async (event: ScheduledEvent | { detail?: Record<string, any> }): Promise<any> => {
+export const handler = async (event: ScheduledEvent | { detail?: Record<string, any> }, context?: any): Promise<any> => {
   const detail = (event as any)?.detail ?? {};
 
   if (!isDbConfigured()) {
     const message =
-      "ingest-cf is scaffolded but not wired to RDS. See functions/_shared/db.ts TODO(rds). " +
-      "The Supabase version remains the live implementation.";
+      "ingest-cf has no database configuration. Set DATABASE_SECRET_ARN.";
     console.warn(message);
     throw new Error(message);
   }
 
-  return run(detail);
+  return run(detail, context);
 };
 
 // Exported for offline verification of the CPV filter and status mapping.

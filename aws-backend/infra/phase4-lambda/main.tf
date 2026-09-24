@@ -30,7 +30,8 @@ locals {
       timeout     = 30
       memory      = 1024
       vpc         = true
-      # Was 10. Set to -1 (unreserved) because THIS ACCOUNT'S TOTAL Lambda
+      # RESTORED 25 Sep, when the account quota went from 10 to 1000.
+      # Previously: set to -1 because THIS ACCOUNT'S TOTAL Lambda
       # concurrency limit is 10 — the default for a new account, not the usual
       # 1000. Any reservation at all fails with:
       #
@@ -43,7 +44,7 @@ locals {
       # concurrent executions is shared by every function including the
       # ingestion fleet, so a cron run and a user search compete. Raise it via
       # a Service Quotas request before go-live, then restore this reservation.
-      reserved_concurrency = -1
+      reserved_concurrency = 10
       secrets = [
         data.aws_secretsmanager_secret.api_db.arn,
         data.aws_secretsmanager_secret.openai.arn,
@@ -61,7 +62,7 @@ locals {
       timeout              = 60
       memory               = 512
       vpc                  = true
-      reserved_concurrency = -1 # see semantic-search: account cap is 10
+      reserved_concurrency = 5
       secrets              = [data.aws_secretsmanager_secret.openai.arn]
       env                  = { OPENAI_SECRET_ARN = data.aws_secretsmanager_secret.openai.arn }
     }

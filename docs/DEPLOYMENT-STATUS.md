@@ -11,23 +11,43 @@ Companion docs: [`DEPLOYMENT-PLAN.md`](DEPLOYMENT-PLAN.md) · [`BIDINTEL-STATUS.
 
 ## ⏭️ EXACT NEXT STEP
 
-**Add the two Cloudflare records so HTTPS can be finished.** Everything else is
-blocked behind it. The ACM certificate requested on 15 Sep **FAILED** — ACM gives
-up after 72 hours and neither record was ever added, so it must be re-requested
-once DNS is ready.
+**Embed the 1,780 new tenders**, then enable the schedules.
 
-Then: build the ingestion adapter (`_shared/db.ts`), which is the last thing
-standing between this stack and cutover.
+```bash
+export AWS_PROFILE=bidintel-deploy AWS_REGION=eu-north-1
+# ~500 per run; repeat until "embedding pending" is 0
+aws lambda invoke --cli-read-timeout 0 --function-name bidintel-embed-tenders-batch \
+  --payload '{}' /tmp/o.json
 
-## Ingestion stopped on LOVABLE, around 8 September — before the migration
+cd aws-backend/infra/phase7-workers
+terraform apply -var enable_schedules=true
+```
 
-The "frozen at 7 Sep" symptom is **not** an artefact of the AWS copy. It is
-present on the live Lovable system and predates this work.
+Then the Cloudflare records for HTTPS (unchanged, still outstanding), and the
+monitoring build once an alert email is nominated.
 
-Evidence, from the 11 Sep export itself — rows created per day in `tenders`:
+## ✅ Ingestion is WORKING on AWS (25 Sep)
 
-| created_at | rows |
-|---|---:|
+The 403s do not affect AWS. Both daily ingesters ran clean from the VPC, through
+the NAT, and closed most of the gap:
+
+| | baseline | now |
+|---|---:|---:|
+| `tenders` | 22,691 | **24,471** (+1,780) |
+| `max(published_at)` | 2026-09-07 | **2026-09-24** |
+| published after 7 Sep | 0 | **1,907** |
+| `notices` | 22,855 | 24,635 |
+| `buyers` | 3,387 | 3,441 |
+
+`cf` watermark is at **now** (48h span = steady state). `fts` is at 19 Sep and
+advancing 14 days per run.
+
+**1,780 tenders have no embedding yet** — they will not appear in semantic search
+until `embed-tenders-batch` has run over them.
+
+---
+
+---:|
 | 2026-09-05 | 172 |
 | 2026-09-06 | 2 |
 | 2026-09-07 | 1 |

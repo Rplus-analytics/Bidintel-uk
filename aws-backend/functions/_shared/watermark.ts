@@ -93,3 +93,38 @@ export async function commitWindow(db: DbClient, source: string, w: Window): Pro
   );
   if (error) throw new Error(`watermark commit failed for ${source}: ${error.message}`);
 }
+
+
+/**
+ * Does this run's error list contain anything that should HOLD the watermark?
+ *
+ * The distinction matters, and getting it wrong breaks the feature in one
+ * direction or the other:
+ *
+ *   TOO STRICT  and the watermark never advances. The first live run produced
+ *               41 and 49 per-row `duplicate key value violates unique
+ *               constraint "buyers_name_key"` warnings — a pre-existing defect
+ *               in the linked-table upsert, unrelated to fetching. Holding the
+ *               watermark on those means the catch-up never progresses past its
+ *               first 14-day chunk, however many times it runs.
+ *
+ *   TOO LOOSE   and a 403 — a run that "succeeds" while fetching nothing —
+ *               advances the watermark and bakes the loss in. That is precisely
+ *               the September failure.
+ *
+ * So: anything that indicates the WINDOW was not actually retrieved holds it.
+ * Anything that indicates a row within a retrieved window could not be linked
+ * does not — that row is a data-quality problem to fix separately, not a reason
+ * to re-fetch the same days forever.
+ */
+export function blocksWatermark(errors: any[]): boolean {
+  return errors.some((e) => {
+    if (!e || typeof e !== "object") return true;   // unrecognised: fail safe
+    if ("fatal" in e) return true;                   // threw before completing
+    if ("status" in e) return true;                  // upstream non-2xx, incl. 403
+    if ("watermark" in e) return true;               // the commit itself failed
+    // { page, linked: [...] } and { page, noticesMirror } are per-row.
+    if ("linked" in e || "noticesMirror" in e) return false;
+    return true;                                     // anything new: fail safe
+  });
+}

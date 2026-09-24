@@ -118,11 +118,37 @@ export async function upsertLinkedFromRelease(
       last_seen_at: new Date().toISOString(),
     };
     if (buyerExtId) row.external_id = buyerExtId;
-    const { data: bu, error: be } = await supabase
+    let { data: bu, error: be } = await supabase
       .from("buyers")
       .upsert(row, { onConflict: buyerExtId ? "external_id" : "name" })
       .select("id")
       .single();
+
+    // `buyers` carries TWO unique constraints — buyers_external_id_key and
+    // buyers_name_key — but ON CONFLICT can only name one. Upserting on
+    // external_id therefore still violates the NAME constraint whenever a buyer
+    // with that name already exists under a different or absent external_id.
+    //
+    // Observed on the first live run: 41 of these from ingest-fts and 49 from
+    // ingest-cf. The buyer row already existed and was correct; the tender
+    // simply failed to be linked to it, leaving buyer_id null. Pre-existing —
+    // the same upsert ran on Supabase — and swallowed into a warning there too.
+    //
+    // Recovering by name is right rather than merely quiet: the conflict proves
+    // a row with this name exists, and buyers are identified by canonical name
+    // throughout this schema.
+    if (be && /buyers_name_key/.test(be.message) && row.name) {
+      const found = await supabase.from("buyers").select("id").eq("name", row.name).maybeSingle();
+      if (!found.error && found.data) {
+        bu = found.data as any;
+        be = null;
+        // Backfill the external_id we now know, without disturbing the name.
+        if (buyerExtId) {
+          await supabase.from("buyers").update({ external_id: buyerExtId }).eq("id", (found.data as any).id);
+        }
+      }
+    }
+
     if (be) errors.push({ buyer: be.message });
     else {
       buyerId = bu.id;
@@ -264,11 +290,24 @@ export async function upsertLinkedFromRelease(
       const supExtId: string | null = s?.id ? `${source}:${s.id}` : null;
       const supRow: any = { name: s.name, last_seen_at: new Date().toISOString() };
       if (supExtId) supRow.external_id = supExtId;
-      const { data: sup, error: se } = await supabase
+      let { data: sup, error: se } = await supabase
         .from("suppliers")
         .upsert(supRow, { onConflict: supExtId ? "external_id" : "name" })
         .select("id")
         .single();
+
+      // Same two-unique-constraints problem as buyers, above.
+      if (se && /suppliers_name_key/.test(se.message) && supRow.name) {
+        const found = await supabase.from("suppliers").select("id").eq("name", supRow.name).maybeSingle();
+        if (!found.error && found.data) {
+          sup = found.data as any;
+          se = null;
+          if (supExtId) {
+            await supabase.from("suppliers").update({ external_id: supExtId }).eq("id", (found.data as any).id);
+          }
+        }
+      }
+
       if (se) {
         errors.push({ supplier: se.message });
         continue;
