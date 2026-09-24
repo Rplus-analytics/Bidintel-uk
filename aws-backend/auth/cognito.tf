@@ -57,7 +57,12 @@ resource "aws_cognito_user_pool" "main" {
     require_uppercase                = true
     require_numbers                  = true
     require_symbols                  = false
-    temporary_password_validity_days = 7
+    # Raised from 7. The clock starts when the invitation is SENT, not when the
+    # user first tries, and Rajesh's first invitation expired unused while HTTPS
+    # and DNS were still outstanding — a wasted round trip that 7 days makes
+    # easy to repeat. 30 days comfortably covers the remaining setup without
+    # leaving a usable temporary credential alive indefinitely.
+    temporary_password_validity_days = 30
   }
 
   mfa_configuration = var.mfa_configuration

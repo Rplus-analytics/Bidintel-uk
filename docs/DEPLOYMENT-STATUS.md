@@ -11,33 +11,41 @@ Companion docs: [`DEPLOYMENT-PLAN.md`](DEPLOYMENT-PLAN.md) · [`BIDINTEL-STATUS.
 
 ## ⏭️ EXACT NEXT STEP
 
-**Log in at http://localhost:8080 and work through the test checklist below.**
-The full stack is deployed and smoke-tested; what remains is a human comparing
-the AWS app against Lovable side by side.
+**Add the two Cloudflare records so HTTPS can be finished.** Everything else is
+blocked behind it. The ACM certificate requested on 15 Sep **FAILED** — ACM gives
+up after 72 hours and neither record was ever added, so it must be re-requested
+once DNS is ready.
 
-```bash
-cd ~/Bidintel && git checkout aws-migration
-cp .env.example .env.local          # values are already filled in
-npm install                          # adds amazon-cognito-identity-js
-npm run dev                          # http://localhost:8080
-```
+Then: build the ingestion adapter (`_shared/db.ts`), which is the last thing
+standing between this stack and cutover.
 
-Sign in as `sanjanalagisetty111@gmail.com` with the temporary password Cognito
-emailed on **15 Sep 2026** (valid 7 days, so **expires 22 Sep**). The first
-sign-in shows a "choose a new password" screen — that is the expected
-FORCE_CHANGE_PASSWORD flow, not an error.
+## ⚠️ WHO IS ACTUALLY ON WHICH BACKEND (checked 25 Sep)
 
-**If the app loads but every page is empty**, the operator IP has changed. Run
-`scripts/allow-my-ip.sh`, then update `admin_cidrs` in
-`aws-backend/infra/phase6-postgrest/variables.tf` and re-apply. The ALB admits
-one `/32`.
+**Nobody has used the AWS stack. All seven users are on Lovable.** This was
+believed to be otherwise on 25 Sep; the evidence says clearly not:
 
-### Nothing is half-finished
+| Check | Finding |
+|---|---|
+| `origin/main` contents | **No** `src/integrations/aws/` files; its client is still `createClient(VITE_SUPABASE_URL, …)` |
+| `aws-migration` merged? | **No** — `git merge-base --is-ancestor` says it is not an ancestor of main |
+| ACM certificate | **FAILED** — validation never completed |
+| `api.bidintel.rplusai.co.uk` | **Does not resolve** — neither Cloudflare record was added |
+| ALB listeners | **Port 80 only.** No HTTPS listener exists |
+| ALB security group | One stale `/32` from 15 Sep. The endpoint was unreachable from *everywhere*, including the operator |
+| PostgREST access log | **No request served since 17 Sep 05:53 UTC** |
+| Rajesh's Cognito user | Still `FORCE_CHANGE_PASSWORD` — he has never completed an AWS sign-in |
 
-Every Terraform stack is applied and `terraform plan` is clean on all five.
-The frontend builds, typechecks and tests green. Nothing is mid-migration.
+So Vercel serves `main`, which is the **Lovable/Supabase** app. It works from any
+device and loads data because Supabase is public — not because the AWS allowlist
+was bypassed. **There is no AWS exposure, and there is no split-backend problem:
+everyone is on one backend, the old one.**
+
+The only AWS traffic is `REFRESH_TOKEN_AUTH` from a browser still holding a
+Cognito session from 16 Sep. It refreshes tokens successfully and then reaches no
+data, because the ALB was unreachable.
 
 ---
+
 
 ## 🚩 THREE THINGS NEED YOUR DECISION
 
