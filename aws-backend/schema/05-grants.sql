@@ -65,3 +65,47 @@ BEGIN
   END LOOP;
 END
 $$;
+
+-- ---------------------------------------------------------------------------
+-- EXECUTE for the worker role
+-- ---------------------------------------------------------------------------
+--
+-- SECOND TIME THE BLANKET REVOKE ABOVE BIT. The first was pgvector's operator
+-- functions; this is worse, and was found by the first real test of the
+-- ingestion adapter:
+--
+--   permission denied for function canonicalize_org_name
+--
+-- All FOURTEEN trigger functions on the tables the workers write —
+-- tenders_search_tsv_update, tenders_set_derived_status, buyers_set_canonical,
+-- notices_set_buyer_canonical, set_updated_at and the rest — were left
+-- un-executable by bidintel_app. Every INSERT or UPDATE from an ingestion
+-- worker would have failed at the trigger, on every table that matters.
+--
+-- It was masked because embed-tenders-batch had only ever run on the RDS master
+-- credentials, which are superuser and bypass the check entirely.
+--
+-- bidintel_app is the trusted worker role: it already holds BYPASSRLS and is
+-- unreachable from the web tier, so granting EXECUTE across the schema crosses
+-- no privilege boundary that its other grants do not already cross. The
+-- user-facing role, bidintel_api, deliberately keeps its narrow three-function
+-- allowance.
+--
+-- Generated rather than listed, so a new trigger function cannot reintroduce
+-- this silently.
+
+DO $$
+DECLARE r record;
+BEGIN
+  FOR r IN
+    SELECT p.oid::regprocedure AS sig
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+  LOOP
+    EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO bidintel_app', r.sig);
+  END LOOP;
+END
+$$;
+
+-- And for anything created later by the owner.
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO bidintel_app;

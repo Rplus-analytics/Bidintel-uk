@@ -21,7 +21,7 @@
 // This stub exists so the ported logic can be reviewed and diffed NOW, before
 // RDS exists, without inventing SQL that nobody can run or test.
 //
-// TODO(rds): implementation checklist —
+// (was TODO(rds) — implemented): implementation checklist —
 //   1. `npm install pg` (+ `@types/pg`) per function that needs it.
 //   2. Read credentials from Secrets Manager, not a plaintext Lambda env var.
 //   3. Module-scope Pool with `max: 1` per container; RDS Proxy in front once
@@ -113,9 +113,8 @@
 export class DbNotConfiguredError extends Error {
   constructor(table: string, op: string) {
     super(
-      `Database not configured: ${op} on "${table}" requires RDS. ` +
-      `This Lambda is a scaffold — see the TODO(rds) block in functions/_shared/db.ts. ` +
-      `The Supabase version remains the live implementation.`,
+      `Database not configured: ${op} on "${table}". ` +
+      `Set DATABASE_SECRET_ARN (preferred) or DATABASE_URL.`,
     );
     this.name = "DbNotConfiguredError";
   }
@@ -125,96 +124,112 @@ export function isDbConfigured(): boolean {
   return Boolean(process.env.DATABASE_SECRET_ARN || process.env.DATABASE_URL);
 }
 
-/**
- * Chainable stub matching the subset of the PostgREST builder these functions
- * use. Every method returns `this`; awaiting it rejects.
- */
-class StubQueryBuilder implements PromiseLike<never> {
-  constructor(private table: string, private op = "query") {}
+// ---------------------------------------------------------------------------
+// Connection
+// ---------------------------------------------------------------------------
+//
+// Connects as bidintel_app: BYPASSRLS, because these workers write rows for
+// every organisation and are never reachable from the web tier. That is also
+// exactly why this module must never be imported by a user-facing function —
+// semantic-search and buyer-profile use bidintel_api, which is NOBYPASSRLS.
+//
+// Pool at module scope so a warm container reuses the connection. max: 2 rather
+// than 1: several workers issue a second query while the first is still open.
 
-  private mark(op: string): this {
-    this.op = op;
-    return this;
-  }
+import { Pool } from "pg";
+import { QueryBuilder, type Result } from "./sql-builder";
 
-  select(_cols?: string): this { return this.op === "query" ? this.mark("select") : this; }
-  insert(_rows?: unknown): this { return this.mark("insert"); }
-  upsert(_rows?: unknown, _opts?: unknown): this { return this.mark("upsert"); }
-  update(_patch?: unknown): this { return this.mark("update"); }
-  delete(): this { return this.mark("delete"); }
+let pool: Pool | null = null;
 
-  eq(_c?: string, _v?: unknown): this { return this; }
-  neq(_c?: string, _v?: unknown): this { return this; }
-  in(_c?: string, _v?: unknown[]): this { return this; }
-  gte(_c?: string, _v?: unknown): this { return this; }
-  lte(_c?: string, _v?: unknown): this { return this; }
-  gt(_c?: string, _v?: unknown): this { return this; }
-  lt(_c?: string, _v?: unknown): this { return this; }
-  or(_filter?: string): this { return this; }
-  // PostgREST negation/pattern filters. `.not()` is used by backfill-linked-tables
-  // (`.not("raw_json", "is", null)`) and backfill-tick (`.not("source", "like", "%_full")`);
-  // the rest are here so an added call site cannot silently break the chain
-  // before it reaches the throw.
-  not(_c?: string, _op?: string, _v?: unknown): this { return this; }
-  is(_c?: string, _v?: unknown): this { return this; }
-  like(_c?: string, _v?: unknown): this { return this; }
-  ilike(_c?: string, _v?: unknown): this { return this; }
-  filter(_c?: string, _op?: string, _v?: unknown): this { return this; }
-  match(_q?: Record<string, unknown>): this { return this; }
-  contains(_c?: string, _v?: unknown): this { return this; }
-  order(_c?: string, _o?: unknown): this { return this; }
-  range(_f?: number, _t?: number): this { return this; }
-  limit(_n?: number): this { return this; }
-  single(): this { return this; }
-  maybeSingle(): this { return this; }
+async function getPool(): Promise<Pool> {
+  if (pool) return pool;
 
-  then<R1 = never, R2 = never>(
-    _onfulfilled?: ((value: never) => R1 | PromiseLike<R1>) | null,
-    onrejected?: ((reason: unknown) => R2 | PromiseLike<R2>) | null,
-  ): PromiseLike<R1 | R2> {
-    return Promise.reject(new DbNotConfiguredError(this.table, this.op)).then(
-      undefined,
-      onrejected ?? undefined,
-    ) as PromiseLike<R1 | R2>;
-  }
-
-  catch(onrejected?: ((reason: unknown) => unknown) | null) {
-    return Promise.reject(new DbNotConfiguredError(this.table, this.op)).catch(
-      onrejected ?? undefined,
+  let conn = process.env.DATABASE_URL;
+  if (!conn && process.env.DATABASE_SECRET_ARN) {
+    const { SecretsManagerClient, GetSecretValueCommand } =
+      await import("@aws-sdk/client-secrets-manager");
+    const sm = new SecretsManagerClient({});
+    const r = await sm.send(
+      new GetSecretValueCommand({ SecretId: process.env.DATABASE_SECRET_ARN }),
     );
+    const c = JSON.parse(r.SecretString || "{}");
+    conn = `postgresql://${encodeURIComponent(c.PGUSER)}:${encodeURIComponent(c.PGPASSWORD)}` +
+           `@${c.PGHOST}:${c.PGPORT ?? 5432}/${c.PGDATABASE}`;
   }
+  if (!conn) throw new DbNotConfiguredError("(pool)", "connect");
+
+  pool = new Pool({
+    connectionString: conn,
+    max: 2,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 15_000,
+    // Ingestion runs are long; a worker paging through an upstream API can hold
+    // a statement open well past the default.
+    statement_timeout: 120_000,
+    ssl: { rejectUnauthorized: false },
+  });
+  return pool;
+}
+
+async function run(sql: string, values: any[]): Promise<any[]> {
+  const db = await getPool();
+  const res = await db.query(sql, values);
+  return res.rows;
 }
 
 export interface DbClient {
-  from(table: string): any;
-  rpc(fn: string, args?: unknown): any;
+  from(table: string): QueryBuilder;
+  rpc(fn: string, args?: Record<string, unknown>): Promise<Result>;
   auth: {
     getUser(jwt?: string): Promise<{ data: { user: null }; error: Error }>;
   };
 }
 
 /**
- * Drop-in stand-in for the Supabase service-role client the Deno originals
- * create at module scope. Swap this for a real data-access module per the
- * TODO(rds) checklist above.
+ * Drop-in replacement for the Supabase service-role client the Deno originals
+ * created at module scope. Same call sites, same `{ data, error }` shape.
  */
 export function createDbClient(): DbClient {
   return {
     from(table: string) {
-      return new StubQueryBuilder(table);
+      return new QueryBuilder(table, run);
     },
-    rpc(fn: string) {
-      return new StubQueryBuilder(`rpc:${fn}`, "rpc");
+
+    /**
+     * The four backfill_status_* reporting functions. Named-argument notation,
+     * for the same reason semantic-search uses it: if an overload is ever added,
+     * positional binding resolves silently to the wrong one.
+     */
+    async rpc(fn: string, args: Record<string, unknown> = {}): Promise<Result> {
+      try {
+        const names = Object.keys(args);
+        const call = names.length
+          ? names.map((n, i) => `${n} => $${i + 1}`).join(", ")
+          : "";
+        if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(fn)) throw new Error(`unsafe function name: ${fn}`);
+        for (const n of names) {
+          if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(n)) throw new Error(`unsafe argument name: ${n}`);
+        }
+        const rows = await run(`SELECT * FROM "${fn}"(${call})`, names.map((n) => args[n]));
+        return { data: rows, error: null };
+      } catch (e: any) {
+        return { data: null, error: { message: e?.message || String(e), code: e?.code } };
+      }
     },
+
     auth: {
       async getUser(_jwt?: string) {
-        // TODO(auth): replaced by Cognito JWT verification, not a database call.
-        // See aws-backend/auth/AUTH-MIGRATION-PLAN.md § 4.
+        // Replaced by Cognito JWT verification at the API Gateway edge; these
+        // workers are EventBridge-triggered and have no caller identity.
         return {
           data: { user: null },
-          error: new DbNotConfiguredError("auth.users", "getUser"),
+          error: new Error("auth.getUser is not available in workers; use the API Gateway authorizer"),
         };
       },
     },
   };
+}
+
+export async function closePool(): Promise<void> {
+  if (pool) { await pool.end(); pool = null; }
 }

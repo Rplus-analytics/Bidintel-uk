@@ -539,17 +539,87 @@ does not raise.
 - [ ] "All sources" search returns fewer sources — TED, Sell2Wales, eTenders IE/NI never existed
 - [ ] **Data is a point-in-time copy from 11 Sep and is not updating** — see below
 
-## Required before cutover: the ingestion adapter
+## Ingestion adapter — BUILT (25 Sep), not yet deployed
 
-The ten ingestion and backfill workers all reach the database through
-`aws-backend/functions/_shared/db.ts`, which is still a PostgREST-shaped stub that throws. Until it
-is implemented:
+`_shared/db.ts` is no longer a stub. `_shared/sql-builder.ts` translates the
+PostgREST-shaped calls the sixteen workers already make into SQL over `pg`, so
+every call site stays byte-identical and only the transport changes.
 
-**the AWS database goes stale the moment Lovable stops writing.** No new tenders, no new notices, no
-new awards. The loaded data is a point-in-time copy from 11 Sep.
+Scope is deliberately closed — what the workers actually call, measured by
+grepping them: `select insert upsert update delete`, `eq neq in gte lte gt lt or
+not match`, `order range limit single maybeSingle`, and
+`select("*", {count:"exact", head:true})`. An unsupported operator throws **by
+name**; that matters more than completeness, because a filter silently dropped
+turns "update this one row" into "update every row".
 
-It is deferred only because the login/search path was prioritised for testing. It is **not**
-optional, and it is the last thing standing between a working test stack and a cutover-ready one.
+All 19 worker functions typecheck against it. `aws-backend/test/adapter-live.ts`
+runs 20 assertions against the real database: **20 passed, 0 failed.**
+
+### Three things the live test caught that nothing else would have
+
+1. **All 14 trigger functions were un-executable by `bidintel_app`.** The
+   blanket `REVOKE EXECUTE ... FROM PUBLIC` in `05-grants.sql` left
+   `tenders_search_tsv_update`, `tenders_set_derived_status`,
+   `buyers_set_canonical`, `set_updated_at` and ten others unreachable, so
+   **every** worker INSERT or UPDATE would have failed at the trigger, on every
+   table that matters. Masked until now because `embed-tenders-batch` had only
+   ever run on the RDS master credentials, which are superuser. This is the
+   second time that revoke has bitten — pgvector was the first.
+2. **`.eq()` threw synchronously out of the chain.** Call sites destructure
+   `{ data, error }` and never wrap in try/catch, so a bad identifier would have
+   escaped as an unhandled exception rather than the error they check. Builder
+   failures are now recorded and returned through the normal channel.
+3. **`ignoreDuplicates` is not cosmetic.** `sync-notices` upserts buyers with
+   `ignoreDuplicates: true`, which is `DO NOTHING` — an existing row is left
+   alone. The default is `DO UPDATE`, which would let a later, thinner record
+   clobber a richer one.
+
+### Still to do before it ingests
+
+- Deploy the workers (a phase-7 Terraform stack) with `DATABASE_SECRET_ARN`
+  pointing at `bidintel/worker-db`, on EventBridge schedules.
+- **Switch `embed-tenders-batch` off the RDS master credentials** — it is the
+  last thing holding them, and the masking above is exactly why that matters.
+- Monitoring, so a silent stop cannot recur. See below.
+
+## Closing the 8 Sep gap: the backfill workers CANNOT do it
+
+Asked whether `backfill-tick` and `backfill-source-tick` can close 8 Sep → now
+from the `backfill_state` cursor: **no, not as they stand.**
+
+`backfill-tick` selects `.eq("completed", false)` and excludes `%_full`. Every
+recent source is parked at `completed = true`, because `isCurrentOrFuture()`
+marks a source complete once its cursor reaches the current month. Only two rows
+are live — `raw_cf` (at 2015-01) and `ccs_digital_outcomes` — and both are
+walking deep history, not the present.
+
+What each ingester would actually do if switched on today:
+
+| Worker | Window | Closes 8–25 Sep? |
+|---|---|---|
+| `sync-notices` | **6 months** | **Yes** — one run covers it, for every source it fans out to |
+| `ingest-cf-native` | 7-day cursor from `cursor_date` (2026-09-03), `completed=true` | Only after `completed=false`; then ~3 ticks |
+| `ingest-cf` | **fixed 24 hours** | **No** — picks up from today only |
+| `ingest-fts` | **fixed 24 hours** | **No** — picks up from today only |
+| `backfill-tick` | skips completed rows | **No** |
+
+So the gap does **not** self-heal. `ingest-cf` and `ingest-fts` would leave
+8–24 Sep permanently missing. To close it deliberately:
+
+```sql
+-- Re-walk September for the forward-walking sources.
+UPDATE backfill_state SET completed = false, year = 2026, month0 = 8, lock_until = NULL
+WHERE source IN ('cf', 'fts', 'cf_native');
+```
+
+then let `backfill-tick` run. Rough cost: one month per source per tick, three
+sources, plus `sync-notices` covering the rest in a single pass — on a 5-minute
+schedule that is **under an hour** of wall clock, dominated by upstream API
+paging rather than by the database. Embedding the new rows adds roughly a minute
+per 500 tenders at the batch size used.
+
+Worth doing this **before** cutover rather than after, so the comparison against
+Lovable is like-for-like.
 
 ## Decisions, and why
 
