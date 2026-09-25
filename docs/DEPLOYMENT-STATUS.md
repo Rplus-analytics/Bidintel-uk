@@ -11,28 +11,80 @@ Companion docs: [`DEPLOYMENT-PLAN.md`](DEPLOYMENT-PLAN.md) · [`BIDINTEL-STATUS.
 
 ## ⏭️ EXACT NEXT STEP
 
-**Embed the 1,780 new tenders**, then enable the schedules.
+**Add the two Cloudflare records.** Everything else that can be done without you
+is done. The ACM certificate is `PENDING_VALIDATION` and ACM abandons it after
+72 hours, so it has already had to be recreated once.
 
-```bash
-export AWS_PROFILE=bidintel-deploy AWS_REGION=eu-north-1
-# ~500 per run; repeat until "embedding pending" is 0
-aws lambda invoke --cli-read-timeout 0 --function-name bidintel-embed-tenders-batch \
-  --payload '{}' /tmp/o.json
+Then, in order: enable the schedules, nominate an alert email, decide the
+Scotland endpoint, and cut over.
 
-cd aws-backend/infra/phase7-workers
-terraform apply -var enable_schedules=true
-```
+## ✅ All 19 workers deployed and individually verified (25 Sep)
 
-Then the Cloudflare records for HTTPS (unchanged, still outstanding), and the
-monitoring build once an alert email is nominated.
+Every worker invoked once by hand against the real database. Row deltas:
 
-## ✅ Ingestion is WORKING on AWS (25 Sep)
+| Worker | Result |
+|---|---|
+| `ingest-cf` | upserted 495, **watermark at now** (steady state) |
+| `ingest-fts` | scanned 4,733 / upserted 1,012, **watermark at now** |
+| `sync-notices` | **notices +300, buyers +35** — all three sources reached via IAM |
+| `scrape-ccs-digital-outcomes` | **tenders +15, tenders_ccs +587** |
+| `backfill-source-tick` | **tenders_pcs +89** (walking `pcs_full` from 2015) |
+| `embed-tenders-batch` | **50/50 per run, 0 failures** |
+| `backfill-status` | fts 8,125 / notices 10,000; coverage 18,869 of 24,751 |
+| `normalize-raw-cf` | "already complete" |
+| `ingest-cf-native` | parked (`completed: true`), no crash |
+| `backfill-tick` | runs; one corrupt `backfill_state` row (below) |
+| `ingest-trigger`, `scrape-cf-notice` | `Unauthorized` / `noticeIds required` — correct, both are request-style admin functions |
+| `ingest-contracts-scotland` | **dead endpoint — needs a decision (below)** |
 
-The 403s do not affect AWS. Both daily ingesters ran clean from the VPC, through
-the NAT, and closed most of the gap:
+### Cumulative effect
 
 | | baseline | now |
 |---|---:|---:|
+| `tenders` | 22,691 | **24,751** (+2,060) |
+| `max(published_at)` | 2026-09-07 | **2026-09-24** |
+| `notices` | 22,855 | 25,200 |
+| `buyers` | 3,387 | 3,490 |
+| `tenders_pcs` | 0 | 89 |
+| `tenders_ccs` | 0 | 587 |
+
+## 🚩 Needs your decision: the Scotland endpoint
+
+`ingest-contracts-scotland` calls
+`www.publiccontractsscotland.gov.uk/api/1.0/ocdsReleasePackages`, which returns
+**404** — the endpoint has been retired. It then falls back to the `r.jina.ai`
+third-party proxy, which returns the 404 HTML, producing "proxy returned no JSON
+body".
+
+The reported "403 since May" is therefore a **404 on a retired endpoint**. The
+conclusion that Scotland stopped was right; the mechanism is different, and that
+matters because a 404 will never clear itself.
+
+`api.publiccontractsscotland.gov.uk/v1/Notices` works — 200, 89 releases, newest
+25 Sep — and the `contracts-scotland` proxy function already parses that shape.
+
+Two approaches:
+
+1. **Repoint the ingester** at `/v1/Notices` and port the proxy's mapping into
+   it. More code, but keeps the ingester self-contained.
+2. **Have it invoke the `contracts-scotland` Lambda** and persist the normalised
+   output, as `sync-notices` now does. Much less code, reuses parsing that is
+   already verified working, at the cost of one function depending on another.
+
+**Recommended: (2).** The mapping exists and is tested; duplicating it invites
+the two copies to drift. Not done unilaterally because it changes the ingester's
+architecture rather than fixing a wiring fault.
+
+Note the `r.jina.ai` fallback routes all this traffic through an unrelated third
+party. Worth removing whichever option is chosen.
+
+Also pre-existing: `backfill_state` has a corrupt row — `ccs_digital_outcomes` at
+**year 168** — which `backfill-tick` reports as "Unknown source". Harmless today
+because that source is handled by its own scraper.
+
+---
+
+---:|---:|
 | `tenders` | 22,691 | **24,471** (+1,780) |
 | `max(published_at)` | 2026-09-07 | **2026-09-24** |
 | published after 7 Sep | 0 | **1,907** |
