@@ -24,6 +24,7 @@ import {
   isDbConfigured,
   type PendingTender,
 } from "./db";
+import { ensureSecretEnv } from "../_shared/secret-env";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -41,6 +42,12 @@ async function embed(input: string): Promise<number[]> {
   // the platform being migrated away from. text-embedding-3-small is the same
   // model the gateway proxied, so vectors stay comparable with the 22,088
   // already in the column and no re-embedding is needed.
+  // Terraform supplies only OPENAI_SECRET_ARN — the key itself never enters a
+  // function's configuration. Without this the variable is undefined and EVERY
+  // row fails, which is exactly what happened: 50 claimed, 0 embedded, 50 failed,
+  // in 150ms, six runs in a row. The per-row catch swallowed the reason, so the
+  // function reported ok:true each time and logged nothing.
+  await ensureSecretEnv("OPENAI_API_KEY", "OPENAI_SECRET_ARN");
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error("OPENAI_API_KEY missing");
   const res = await fetch("https://api.openai.com/v1/embeddings", {
@@ -87,6 +94,12 @@ async function runBatch(): Promise<{ ok: true; processed: 0; message: string } |
       ok++;
     } catch (e: any) {
       failed++;
+      // Log the FIRST failure in full. Previously every row's reason was
+      // discarded, so a misconfiguration affecting all 50 looked identical to 50
+      // unrelated per-row problems — and the function still returned ok:true.
+      if (failed === 1) {
+        console.error(JSON.stringify({ embedFailure: e?.message ?? String(e), tenderId: row.id }));
+      }
       const attempts = (row.embedding_attempts || 0) + 1;
       const nextStatus = attempts >= 5 ? "failed" : "pending";
       await markFailed(row.id, nextStatus, attempts, String(e?.message || e).slice(0, 500));

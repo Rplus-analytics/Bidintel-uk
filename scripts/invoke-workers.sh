@@ -24,10 +24,10 @@ REGION="${AWS_REGION:-eu-north-1}"
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 
 DEFAULT=(
-  ingest-cf ingest-fts ingest-cf-native ingest-contracts-scotland
-  normalize-raw-cf scrape-ccs-digital-outcomes sync-notices
+  ingest-cf-native ingest-contracts-scotland normalize-raw-cf
+  scrape-ccs-digital-outcomes sync-notices ingest-trigger scrape-cf-notice
   backfill-status backfill-tick backfill-source-tick
-  embed-tenders-batch
+  embed-tenders-batch generate-tender-embedding
 )
 TARGETS=("$@"); [ ${#TARGETS[@]} -eq 0 ] && TARGETS=("${DEFAULT[@]}")
 
@@ -60,7 +60,12 @@ for fn in "${TARGETS[@]}"; do
   before=$(snapshot)
   event_for "$fn" > "$TMP/ev.json"
   start=$(date +%s)
+  # --cli-read-timeout 0: the default 60s fires on the paced ingesters, and the
+  # CLI then never writes the output file — so a naive harness reads the PREVIOUS
+  # run's result and reports it as this one's. That happened, and two different
+  # functions appeared to return identical figures.
   aws lambda invoke --region "$REGION" --profile "$PROFILE" \
+    --cli-read-timeout 0 --cli-connect-timeout 0 \
     --function-name "bidintel-$fn" --cli-binary-format raw-in-base64-out \
     --payload "file://$TMP/ev.json" "$TMP/out.json" > "$TMP/meta.json" 2>"$TMP/err.txt"
   rc=$?

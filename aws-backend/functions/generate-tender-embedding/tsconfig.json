@@ -1,5 +1,11 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "outDir": "dist", "rootDir": "." },
-  "include": ["index.ts", "db.ts"]
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "index.ts",
+    "db.ts",
+    "../_shared/secret-env.ts"
+  ]
 }

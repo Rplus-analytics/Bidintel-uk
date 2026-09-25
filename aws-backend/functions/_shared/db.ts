@@ -136,7 +136,36 @@ export function isDbConfigured(): boolean {
 // Pool at module scope so a warm container reuses the connection. max: 2 rather
 // than 1: several workers issue a second query while the first is still open.
 
-import { Pool } from "pg";
+import { Pool, types as pgTypes } from "pg";
+
+// ---------------------------------------------------------------------------
+// Type parsing must match PostgREST's JSON, not node-pg's defaults
+// ---------------------------------------------------------------------------
+//
+// FOUND BY A CRASH, not by review. ingest-cf-native does:
+//
+//   new Date(data.cursor_date + "T00:00:00Z")
+//
+// Over PostgREST, `cursor_date` arrived as the JSON string "2026-09-03" and that
+// works. node-pg parses `date` into a JS Date object, so the concatenation
+// produced "Mon Sep 03 2026 ...T00:00:00Z" and the function died with
+// `Invalid time value` — a crash, but only because it happened to concatenate.
+// Code that compared or JSON-serialised such a value would have failed SILENTLY,
+// which is worse, and there are 16 workers' worth of such code.
+//
+// So the pool is configured to return what PostgREST would have returned:
+// temporal types as strings, and the integer/numeric types node-pg hands back as
+// strings as numbers.
+
+// 1082 date, 1114 timestamp, 1184 timestamptz, 1083 time, 1266 timetz
+for (const oid of [1082, 1114, 1184, 1083, 1266]) {
+  pgTypes.setTypeParser(oid, (v: string) => v);
+}
+// 20 int8 and 1700 numeric: node-pg returns these as strings to avoid precision
+// loss. PostgREST emits them as JSON numbers, and the workers do arithmetic on
+// them (`counts.fts += ...`). Row counts here are far below 2^53.
+pgTypes.setTypeParser(20, (v: string) => (v === null ? null : Number(v)));
+pgTypes.setTypeParser(1700, (v: string) => (v === null ? null : Number(v)));
 import { QueryBuilder, type Result } from "./sql-builder";
 
 let pool: Pool | null = null;
@@ -211,6 +240,17 @@ export function createDbClient(): DbClient {
           if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(n)) throw new Error(`unsafe argument name: ${n}`);
         }
         const rows = await run(`SELECT * FROM "${fn}"(${call})`, names.map((n) => args[n]));
+
+        // PostgREST returns a BARE SCALAR for a scalar-returning function, and
+        // an array of objects for a table-returning one. Returning rows
+        // unconditionally broke backfill-status, which does
+        // `counts.fts += (fts.data as number)` — it summed an array of objects
+        // into the string "0[object Object][object Object]…" rather than
+        // throwing. Matching PostgREST here keeps those call sites correct.
+        if (rows.length === 1) {
+          const keys = Object.keys(rows[0]);
+          if (keys.length === 1) return { data: rows[0][keys[0]], error: null };
+        }
         return { data: rows, error: null };
       } catch (e: any) {
         return { data: null, error: { message: e?.message || String(e), code: e?.code } };

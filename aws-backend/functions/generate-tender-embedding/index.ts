@@ -32,6 +32,7 @@
 
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from "aws-lambda";
 import { getTenderById, setEmbedding, isDbConfigured } from "./db";
+import { ensureSecretEnv } from "../_shared/secret-env";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -60,7 +61,8 @@ async function withBackoff<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 async function embedVoyage(input: string): Promise<number[]> {
-  // TODO(secrets): move to Secrets Manager.
+  // No Voyage key is configured on AWS, so this throws and the caller falls
+  // through to OpenAI — the intended fallback order, just with a wasted attempt.
   const key = process.env.VOYAGE_API_KEY;
   if (!key) throw new Error("VOYAGE_API_KEY missing");
   const res = await fetch("https://api.voyageai.com/v1/embeddings", {
@@ -81,6 +83,10 @@ async function embedVoyage(input: string): Promise<number[]> {
 }
 
 async function embedOpenAI(input: string): Promise<number[]> {
+  // Same latent bug embed-tenders-batch had: Terraform supplies only
+  // OPENAI_SECRET_ARN, so without this the key is undefined and the fallback
+  // path fails too, leaving no working provider at all.
+  await ensureSecretEnv("OPENAI_API_KEY", "OPENAI_SECRET_ARN");
   // TODO(secrets): move to Secrets Manager.
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error("OPENAI_API_KEY missing");
