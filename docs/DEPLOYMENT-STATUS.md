@@ -29,7 +29,7 @@ Every worker invoked once by hand against the real database. Row deltas:
 | `sync-notices` | **notices +300, buyers +35** — all three sources reached via IAM |
 | `scrape-ccs-digital-outcomes` | **tenders +15, tenders_ccs +587** |
 | `backfill-source-tick` | **tenders_pcs +89** (walking `pcs_full` from 2015) |
-| `embed-tenders-batch` | **50/50 per run, 0 failures** |
+| `embed-tenders-batch` | **50/50 per run, 0 failures** — backlog fully cleared, 24,751/24,751 embedded |
 | `backfill-status` | fts 8,125 / notices 10,000; coverage 18,869 of 24,751 |
 | `normalize-raw-cf` | "already complete" |
 | `ingest-cf-native` | parked (`completed: true`), no crash |
@@ -47,6 +47,27 @@ Every worker invoked once by hand against the real database. Row deltas:
 | `buyers` | 3,387 | 3,490 |
 | `tenders_pcs` | 0 | 89 |
 | `tenders_ccs` | 0 | 587 |
+| tenders **with an embedding** | 22,691 | **24,751 (100%)** |
+
+### Embedding: 100%, after cleaning up my own mess
+
+The backlog is cleared — **24,751 of 24,751** tenders carry a vector, and
+`embedding_status` holds nothing but `completed`. Semantic search verified
+end to end on the new data: 200, five relevant results, no rpcError, against the
+178 MB HNSW index.
+
+Fifty rows had to be recovered by hand. During the six runs when the OpenAI key
+was missing, the batch claimer kept re-claiming the same fifty rows and each
+burned all five attempts, so they were permanently marked `failed`. Checked
+before resetting rather than assuming: all fifty had exactly 5 attempts and valid
+titles (minimum length 17, no nulls), so they were collateral from the key bug
+rather than genuinely unembeddable. Attempts reset, re-embedded 50/50.
+
+Worth noting as a design weakness in `embed-tenders-batch`, not just an incident:
+a systemic failure burns the retry budget of whatever rows happen to be at the
+front of the queue, and those rows are then indistinguishable from genuinely bad
+ones. A permanent-failure state that records WHY would make that recoverable
+without an operator inspecting the data.
 
 ## 🚩 Needs your decision: the Scotland endpoint
 
